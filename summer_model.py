@@ -41,7 +41,20 @@ class EpiModel:
         check all input data are in the correct form
         """
 
-        pass
+        # check that variables are of the expected type
+        for expected_numeric_variable in ["reporting_sigfigs", "starting_population"]:
+            if not isinstance(eval(expected_numeric_variable), int):
+                raise TypeError("expected integer")
+        if not isinstance(times, numpy.ndarray):
+            raise TypeError("expected numpy array")
+        for expected_list in ["compartment_types"]:
+            if not isinstance(eval(expected_list), list):
+                raise TypeError("expected list")
+        for expected_string_variable in ["infectious_compartment", "birth_approach", "entry_compartment",
+                                         "default_starting_compartment"]:
+            if not isinstance(eval(expected_string_variable), str):
+                print(expected_string_variable)
+                raise TypeError("expected string")
 
     def set_initial_conditions(self, initial_conditions_to_total):
         """
