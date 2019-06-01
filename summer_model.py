@@ -26,14 +26,15 @@ class EpiModel:
         self.times, self.compartment_types, self.initial_conditions, self.parameters, self.requested_flows, \
             self.initial_conditions_to_total, self.infectious_compartment, self.birth_approach, self.report, \
             self.reporting_sigfigs, self.entry_compartment, self.starting_population, \
-            self.default_starting_population, self.equilibrium_stopping_tolerance, self.output_connections,\
-            self.tracked_quantities = [None] * 16
+            self.default_starting_compartment, self.default_starting_population, self.equilibrium_stopping_tolerance, \
+            self.output_connections, self.tracked_quantities = [None] * 17
 
         # convert input arguments to model attributes
-        for attribute in ["times", "compartment_types", "initial_conditions", "parameters", "infectious_compartment",
-                          "birth_approach", "report", "reporting_sigfigs", "entry_compartment",
-                          "starting_population", "default_starting_compartment", "infectious_compartment",
-                          "equilibrium_stopping_tolerance", "output_connections", "tracked_quantities"]:
+        for attribute in ["times", "compartment_types", "initial_conditions", "parameters",
+                          "initial_conditions_to_total", "infectious_compartment", "birth_approach", "report",
+                          "reporting_sigfigs", "entry_compartment", "starting_population",
+                          "default_starting_compartment", "infectious_compartment", "equilibrium_stopping_tolerance",
+                          "output_connections", "tracked_quantities"]:
             setattr(self, attribute, eval(attribute))
 
         # set initial conditions and implement flows
@@ -119,15 +120,21 @@ class EpiModel:
         """
         make initial conditions sum to a certain value
         """
-
-        pass
+        compartment = self.find_remainder_compartment()
 
     def find_remainder_compartment(self):
         """
         find the compartment to put the remaining population that hasn't been assigned yet when summing to total
         """
-
-        pass
+        if len(self.default_starting_compartment) > 0 and \
+                self.default_starting_compartment not in self.compartment_values:
+            raise ValueError("starting compartment to populate with initial values not found in available compartments")
+        elif len(self.default_starting_compartment) > 0:
+            return self.default_starting_compartment
+        else:
+            self.output_to_user("no default starting compartment requested for unallocated population, " +
+                                "so will be allocated to entry compartment %s" % self.entry_compartment)
+            return self.entry_compartment
 
     def implement_flows(self, requested_flows):
         """
