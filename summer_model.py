@@ -103,7 +103,6 @@ class EpiModel:
         """
         set starting compartment values
         """
-
         # set starting values of unstratified compartments to requested value, or zero if no value requested
         for compartment in self.compartment_types:
             if compartment in self.initial_conditions:
@@ -121,6 +120,13 @@ class EpiModel:
         make initial conditions sum to a certain value
         """
         compartment = self.find_remainder_compartment()
+        if sum(self.compartment_values.values()) > self.starting_population:
+            raise ValueError("total of requested compartment values is greater than the requested starting population")
+        remaining_population = self.starting_population - sum(self.compartment_values.values())
+        self.output_to_user("requested that total population sum to %s" % self.starting_population)
+        self.output_to_user("remaining population of %s allocated to %s compartment"
+                            % (remaining_population, compartment))
+        self.compartment_values[compartment] = remaining_population
 
     def find_remainder_compartment(self):
         """
@@ -159,4 +165,4 @@ if __name__ == "__main__":
                          [{"type": "standard_flows", "parameter": "recovery", "from": "infectious", "to": "recovered"},
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
-                         report=False)
+                         report=True)
