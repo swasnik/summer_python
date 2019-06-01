@@ -87,8 +87,13 @@ class EpiModel:
 
         # report on characteristics of inputs
         if report:
-            print("integrating from time %s" % round(times[0], reporting_sigfigs))
-
+            print("integrating from time %s to %s"
+                  % (round(times[0], reporting_sigfigs), round(times[-1], reporting_sigfigs)))
+            print("unstratified requested initial conditions are:")
+            for compartment in initial_conditions:
+                print("\t%s: %s" % (compartment, initial_conditions[compartment]))
+            print("infectious compartment is called '%s'" % infectious_compartment)
+            print("birth approach is %s" % birth_approach)
 
     def set_initial_conditions(self, initial_conditions_to_total):
         """
@@ -134,4 +139,4 @@ if __name__ == "__main__":
                          [{"type": "standard_flows", "parameter": "recovery", "from": "infectious", "to": "recovered"},
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
-                         report=True)
+                         report=False)
