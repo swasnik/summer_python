@@ -85,6 +85,11 @@ class EpiModel:
             self.output_to_user("requested integration times are not sorted, now sorting")
             self.times = sorted(self.times)
 
+        # report on characteristics of inputs
+        if report:
+            print("integrating from time %s" % round(times[0], reporting_sigfigs))
+
+
     def set_initial_conditions(self, initial_conditions_to_total):
         """
         set starting compartment values
@@ -128,4 +133,5 @@ if __name__ == "__main__":
                          {"beta": 400, "recovery": 365 / 13, "infect_death": 1},
                          [{"type": "standard_flows", "parameter": "recovery", "from": "infectious", "to": "recovered"},
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
-                          {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}])
+                          {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
+                         report=True)
