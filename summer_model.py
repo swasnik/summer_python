@@ -9,7 +9,10 @@ class EpiModel:
                  default_starting_compartment="", equilibrium_stopping_tolerance=None, output_connections=(),
                  tracked_quantities=()):
 
-        # features not to be changed
+        # attributes that are independent of user inputs
+        self.compartment_values = {}
+
+        # features that should not be changed
         self.available_birth_approaches = ["add_crude_birth_rate", "replace_deaths", "no_births"]
 
         # ensure requests are fed in correctly
@@ -100,7 +103,17 @@ class EpiModel:
         set starting compartment values
         """
 
-        pass
+        # set starting values of unstratified compartments to requested value, or zero if no value requested
+        for compartment in self.compartment_types:
+            if compartment in self.initial_conditions:
+                self.compartment_values[compartment] = self.initial_conditions[compartment]
+            else:
+                self.output_to_user("no starting value requested for %s so set to zero" % compartment)
+                self.compartment_values[compartment] = 0
+
+        # sum to a total value if requested
+        if initial_conditions_to_total:
+            self.sum_initial_compartments_to_total()
 
     def sum_initial_compartments_to_total(self):
         """
