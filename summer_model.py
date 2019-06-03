@@ -1,6 +1,22 @@
 
 import numpy
 from scipy.integrate import odeint
+import matplotlib.pyplot
+
+def find_stem(stratified_string):
+    """
+    find the stem of the compartment name as the text leading up to the first occurrence of "X"
+    """
+    first_x_location = stratified_string.find("X")
+    if first_x_location == -1:
+        return stratified_string
+    else:
+        return stratified_string[: first_x_location]
+
+
+def extract_x_positions(input_string):
+    pass
+
 
 
 class EpiModel:
@@ -304,6 +320,27 @@ class EpiModel:
         return ode_equations
 
     def apply_birth_rate(self, ode_equations, compartment_values, time):
+        """
+        apply a population-wide death rate to all compartments
+        """
+
+        # work out the total births to apply dependent on the approach requested
+        if self.birth_approach == "add_crude_birth_rate":
+            total_births = self.parameters["crude_birth_rate"] * sum(compartment_values)
+        elif self.birth_approach == "replace_deaths":
+            total_births = self.tracked_quantities["total_deaths"]
+        else:
+            total_births = 0
+
+        # split the total births across entry compartments
+        for compartment in self.compartment_values:
+            if find_stem(compartment) == self.entry_compartment:
+
+                # calculate adjustment to original stem entry rate
+                entry_fraction = 1
+                x_positions = extract_x_positions(compartment)
+
+                # print(compartment)
         return ode_equations
 
     def find_infectious_multiplier(self, compartment_values):
@@ -333,6 +370,9 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
+    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+    matplotlib.pyplot.show()
+
     # print(sir_model.outputs)
 
 
