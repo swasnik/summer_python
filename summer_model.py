@@ -1,5 +1,6 @@
 
 import numpy
+from scipy.integrate import odeint
 
 
 class EpiModel:
@@ -26,7 +27,7 @@ class EpiModel:
             self.initial_conditions_to_total, self.infectious_compartment, self.birth_approach, self.report, \
             self.reporting_sigfigs, self.entry_compartment, self.starting_population, \
             self.default_starting_compartment, self.default_starting_population, self.equilibrium_stopping_tolerance, \
-            self.unstratified_flows = [None for _ in range(16)]
+            self.unstratified_flows, self.outputs = [None for _ in range(17)]
 
         # convert input arguments to model attributes
         for attribute in ["times", "compartment_types", "initial_conditions", "parameters",
@@ -97,6 +98,7 @@ class EpiModel:
         """
         set starting compartment values
         """
+
         # set starting values of unstratified compartments to requested value, or zero if no value requested
         for compartment in self.compartment_types:
             if compartment in self.initial_conditions:
@@ -197,6 +199,32 @@ class EpiModel:
         flow["implement"] = 0
         self.death_flows.append(flow)
 
+    def run_model(self):
+        """
+        integrate model odes
+        """
+        self.output_to_user("now integrating")
+        self.prepare_stratified_parameter_calculations()
+
+        def make_model_function(compartment_values, time):
+            return self.apply_all_flow_types_to_odes([0] * len(self.compartment_values), compartment_values, time)
+
+        self.outputs = odeint(make_model_function, list(self.compartment_values.values()), self.times)
+        self.output_to_user("integration complete")
+
+    def prepare_stratified_parameter_calculations(self):
+        """
+        for use in the stratified version
+        """
+        pass
+
+    def apply_all_flow_types_to_odes(self, result, y, time):
+        """
+        dummy function for now
+        """
+        result[0] = 0.1 * y[0]
+        return result
+
 
 if __name__ == "__main__":
     sir_model = EpiModel(numpy.linspace(0, 60 / 365, 60).tolist(),
@@ -207,3 +235,10 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
+    sir_model.run_model()
+    print(sir_model.outputs)
+
+
+
+
+
