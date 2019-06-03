@@ -240,13 +240,39 @@ class EpiModel:
         return ode_equations
 
     def apply_transition_flows(self, ode_equations, compartment_values, time):
+        """
+        add fixed or infection-related flow to odes
+        """
 
+        # find adjusted parameter value
         for flow in self.transition_flows:
             if flow["implement"] == 0:
                 adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
-                print(adjusted_parameter)
 
+                # find from compartment and "infectious population", which is 1 for standard flows
+                infectious_population = self.find_infectious_multiplier(flow["type"])
+
+                # calculate the flow and apply to the odes
+                from_compartment = list(self.compartment_values.keys()).index(flow["from"])
+                net_flow = adjusted_parameter * compartment_values[from_compartment] * infectious_population
+                ode_equations = self.increment_compartment(ode_equations, from_compartment, -net_flow)
+                ode_equations = self.increment_compartment(
+                    ode_equations, list(self.compartment_values.keys()).index(flow["to"]), net_flow)
+
+                # track any quantities dependent on flow rates
+                self.track_derived_outputs(flow, net_flow)
+
+        # add another element to the derived outputs vector
+        self.extend_derived_outputs(time)
+
+        # return flow rates
         return ode_equations
+
+    def track_derived_outputs(self, flow, net_flow):
+        pass
+
+    def extend_derived_outputs(self, time):
+        pass
 
     def apply_compartment_death_flows(self, ode_equations, compartment_values, time):
         return ode_equations
@@ -255,6 +281,16 @@ class EpiModel:
         return ode_equations
 
     def apply_birth_rate(self, ode_equations, compartment_values, time):
+        return ode_equations
+
+    def find_infectious_multiplier(self, compartment_values):
+        return 1
+
+    def increment_compartment(self, ode_equations, compartment_number, increment):
+        """
+        general method to increment the odes by a value specified as an argument
+        """
+        ode_equations[compartment_number] = ode_equations[compartment_number] + increment
         return ode_equations
 
     def get_parameter_value(self, parameter, time):
@@ -274,9 +310,5 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
-    # print(sir_model.outputs)
-
-
-
 
 
