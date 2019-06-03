@@ -275,9 +275,32 @@ class EpiModel:
         pass
 
     def apply_compartment_death_flows(self, ode_equations, compartment_values, time):
+        """
+        equivalent method to for transition flows above, but for deaths
+        """
+        for flow in self.death_flows:
+            if flow["implement"] == 0:
+                adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
+                from_compartment = list(self.compartment_values.keys()).index(flow["from"])
+                net_flow = adjusted_parameter * compartment_values[from_compartment]
+                ode_equations = self.increment_compartment(ode_equations, from_compartment, -net_flow)
+                if "total_deaths" in self.tracked_quantities:
+                    self.tracked_quantities["total_deaths"] += net_flow
         return ode_equations
 
     def apply_universal_death_flow(self, ode_equations, compartment_values, time):
+        """
+        apply the population-wide death rate to all compartments
+        """
+        for compartment in self.compartment_values:
+            adjusted_parameter = self.get_parameter_value("universal_death_rate", time)
+            from_compartment = list(self.compartment_values.keys()).index(compartment)
+            net_flow = adjusted_parameter * compartment_values[from_compartment]
+            ode_equations = self.increment_compartment(ode_equations, from_compartment, -net_flow)
+
+            # track deaths in case births are meant to replace deaths
+            if "total_deaths" in self.tracked_quantities:
+                self.tracked_quantities["total_deaths"] += net_flow
         return ode_equations
 
     def apply_birth_rate(self, ode_equations, compartment_values, time):
@@ -310,5 +333,6 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
+    # print(sir_model.outputs)
 
 
