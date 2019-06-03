@@ -146,8 +146,13 @@ class EpiModel:
         """
         add all flows to create data frames from input lists
         """
-
-        pass
+        for flow in requested_flows:
+            if flow["parameter"] not in self.parameters:
+                raise ValueError("flow parameter not found in parameter list")
+            if flow["from"] not in self.compartment_types:
+                raise ValueError("from compartment name not found in compartment types")
+            if "to" in flow and flow["to"] not in self.compartment_types:
+                raise ValueError("to compartment name not found in compartment types")
 
     def add_default_quantities(self):
         """
@@ -165,4 +170,4 @@ if __name__ == "__main__":
                          [{"type": "standard_flows", "parameter": "recovery", "from": "infectious", "to": "recovered"},
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
-                         report=True)
+                         report=False)
