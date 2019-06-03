@@ -9,8 +9,9 @@ class EpiModel:
                  default_starting_compartment="", equilibrium_stopping_tolerance=None, output_connections=(),
                  tracked_quantities=()):
 
-        # attributes that are independent of user inputs
+        # attributes with specific format that are independent of user inputs
         self.compartment_values = {}
+        self.transition_flows, self.death_flows = [[]] * 2
 
         # features that should not be changed
         self.available_birth_approaches = ["add_crude_birth_rate", "replace_deaths", "no_births"]
@@ -27,7 +28,7 @@ class EpiModel:
             self.initial_conditions_to_total, self.infectious_compartment, self.birth_approach, self.report, \
             self.reporting_sigfigs, self.entry_compartment, self.starting_population, \
             self.default_starting_compartment, self.default_starting_population, self.equilibrium_stopping_tolerance, \
-            self.output_connections, self.tracked_quantities = [None] * 17
+            self.output_connections, self.tracked_quantities, self.unstratified_flows = [None] * 18
 
         # convert input arguments to model attributes
         for attribute in ["times", "compartment_types", "initial_conditions", "parameters",
@@ -154,12 +155,34 @@ class EpiModel:
             if "to" in flow and flow["to"] not in self.compartment_types:
                 raise ValueError("to compartment name not found in compartment types")
 
+            if flow["type"] == "compartment_death":
+                self.add_death_flow(flow)
+            else:
+                self.add_transition_flow(flow)
+
+        # retain a copy of the original flows for the purposes of graphing, etc.
+        self.unstratified_flows = self.transition_flows
+
     def add_default_quantities(self):
         """
         add parameters and tracked quantities that weren't requested but will be needed
         """
 
         pass
+
+    def add_transition_flow(self, flow):
+        """
+        simply add a flow to the data frame storing the flows
+        """
+        flow["implement"] = 0
+        self.transition_flows.append(flow)
+
+    def add_death_flow(self, flow):
+        """
+        similarly for compartment-specific death flows
+        """
+        flow["implement"] = 0
+        self.death_flows.append(flow)
 
 
 if __name__ == "__main__":
@@ -171,3 +194,4 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
+    print(sir_model.death_flows)
