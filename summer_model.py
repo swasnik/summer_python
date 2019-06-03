@@ -6,12 +6,11 @@ class EpiModel:
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
-                 default_starting_compartment="", equilibrium_stopping_tolerance=None, output_connections=(),
-                 tracked_quantities=()):
+                 default_starting_compartment="", equilibrium_stopping_tolerance=None):
 
         # attributes with specific format that are independent of user inputs
-        self.compartment_values = {}
-        self.transition_flows, self.death_flows = [[]] * 2
+        self.compartment_values, self.tracked_quantities, self.output_connections = [{} for _ in range(3)]
+        self.transition_flows, self.death_flows = [[] for _ in range(2)]
 
         # features that should not be changed
         self.available_birth_approaches = ["add_crude_birth_rate", "replace_deaths", "no_births"]
@@ -20,22 +19,20 @@ class EpiModel:
         self.check_and_report_attributes(
             times, compartment_types, initial_conditions, parameters, requested_flows, initial_conditions_to_total,
             infectious_compartment, birth_approach, report, reporting_sigfigs, entry_compartment,
-            starting_population, default_starting_compartment, equilibrium_stopping_tolerance, output_connections,
-            tracked_quantities)
+            starting_population, default_starting_compartment, equilibrium_stopping_tolerance)
 
         # stop ide complaining about attributes being defined outside __init__, even though they aren't
         self.times, self.compartment_types, self.initial_conditions, self.parameters, self.requested_flows, \
             self.initial_conditions_to_total, self.infectious_compartment, self.birth_approach, self.report, \
             self.reporting_sigfigs, self.entry_compartment, self.starting_population, \
             self.default_starting_compartment, self.default_starting_population, self.equilibrium_stopping_tolerance, \
-            self.output_connections, self.tracked_quantities, self.unstratified_flows = [None] * 18
+            self.unstratified_flows = [None for _ in range(16)]
 
         # convert input arguments to model attributes
         for attribute in ["times", "compartment_types", "initial_conditions", "parameters",
                           "initial_conditions_to_total", "infectious_compartment", "birth_approach", "report",
                           "reporting_sigfigs", "entry_compartment", "starting_population",
-                          "default_starting_compartment", "infectious_compartment", "equilibrium_stopping_tolerance",
-                          "output_connections", "tracked_quantities"]:
+                          "default_starting_compartment", "infectious_compartment", "equilibrium_stopping_tolerance"]:
             setattr(self, attribute, eval(attribute))
 
         # set initial conditions and implement flows
@@ -57,8 +54,7 @@ class EpiModel:
     def check_and_report_attributes(
             self, times, compartment_types, initial_conditions, parameters, requested_flows,
             initial_conditions_to_total, infectious_compartment, birth_approach, report, reporting_sigfigs,
-            entry_compartment, starting_population, default_starting_compartment, equilibrium_stopping_tolerance,
-            output_connections, tracked_quantities):
+            entry_compartment, starting_population, default_starting_compartment, equilibrium_stopping_tolerance):
         """
         check all input data have been requested correctly
         """
@@ -77,9 +73,6 @@ class EpiModel:
         for expected_boolean in ["initial_conditions_to_total", "report"]:
             if not isinstance(eval(expected_boolean), bool):
                 raise TypeError("expected boolean for %s" % expected_boolean)
-        for expected_dict in ["output_connections", "tracked_quantities"]:
-            if not isinstance(eval(expected_dict), tuple):
-                raise TypeError("expected dictionary for %s" % expected_dict)
 
         # check some specific requirements
         if infectious_compartment not in compartment_types:
@@ -160,6 +153,11 @@ class EpiModel:
             else:
                 self.add_transition_flow(flow)
 
+            if "infection" in flow["type"]:
+                self.tracked_quantities["infectious_population"] = 0
+            if flow["type"] == "infection_frequency":
+                self.tracked_quantities["total_population"] = 0
+
         # retain a copy of the original flows for the purposes of graphing, etc.
         self.unstratified_flows = self.transition_flows
 
@@ -168,7 +166,22 @@ class EpiModel:
         add parameters and tracked quantities that weren't requested but will be needed
         """
 
-        pass
+        # universal death rate
+        if "universal_death_rate" not in self.parameters:
+            self.parameters["universal_death_rate"] = 0
+
+        # birth approach-specific parameters
+        if self.birth_approach == "add_crude_birth_rate" and "crude_birth_rate" not in self.parameters:
+            self.parameters["crude_birth_rate"] = 0
+        elif self.birth_approach == "replace_deaths":
+            self.tracked_quantities["total_deaths"] = 0
+
+        # for each derived output to be recorded, initialise a tracked quantities key to zero
+        for output in self.output_connections:
+            self.tracked_quantities[output] = 0
+
+        # parameters essential for stratification
+        self.parameters["entry_fractions"] = 1
 
     def add_transition_flow(self, flow):
         """
@@ -194,4 +207,3 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
-    print(sir_model.death_flows)
