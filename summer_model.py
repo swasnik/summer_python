@@ -4,13 +4,23 @@ from scipy.integrate import odeint
 
 
 class EpiModel:
+    def find_parameter_value(self, parameter_name, time):
+        """
+        find the value of a parameter with time-variant values trumping constant ones
+        """
+        if parameter_name in self.time_variants:
+            return self.time_variants[parameter_name](time)
+        else:
+            return self.parameters[parameter_name]
+
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
                  default_starting_compartment="", equilibrium_stopping_tolerance=None):
 
         # attributes with specific format that are independent of user inputs
-        self.compartment_values, self.tracked_quantities, self.output_connections = [{} for _ in range(3)]
+        self.compartment_values, self.tracked_quantities, self.output_connections, self.time_variants = \
+            [{} for _ in range(4)]
         self.transition_flows, self.death_flows = [[] for _ in range(2)]
 
         # features that should not be changed
@@ -218,12 +228,40 @@ class EpiModel:
         """
         pass
 
-    def apply_all_flow_types_to_odes(self, result, y, time):
+    def apply_all_flow_types_to_odes(self, ode_equations, compartment_values, time):
         """
         dummy function for now
         """
-        result[0] = 0.1 * y[0]
-        return result
+        ode_equations = self.apply_transition_flows(ode_equations, compartment_values, time)
+        if len(self.death_flows) > 0:
+            self.apply_compartment_death_flows(ode_equations, compartment_values, time)
+        ode_equations = self.apply_universal_death_flow(ode_equations, compartment_values, time)
+        ode_equations = self.apply_birth_rate(ode_equations, compartment_values, time)
+        return ode_equations
+
+    def apply_transition_flows(self, ode_equations, compartment_values, time):
+
+        for flow in self.transition_flows:
+            if flow["implement"] == 0:
+                adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
+                print(adjusted_parameter)
+
+        return ode_equations
+
+    def apply_compartment_death_flows(self, ode_equations, compartment_values, time):
+        return ode_equations
+
+    def apply_universal_death_flow(self, ode_equations, compartment_values, time):
+        return ode_equations
+
+    def apply_birth_rate(self, ode_equations, compartment_values, time):
+        return ode_equations
+
+    def get_parameter_value(self, parameter, time):
+        """
+        need to split this out as a function in order to allow stratification later
+        """
+        return self.find_parameter_value(parameter, time)
 
 
 if __name__ == "__main__":
@@ -236,7 +274,7 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
-    print(sir_model.outputs)
+    # print(sir_model.outputs)
 
 
 
