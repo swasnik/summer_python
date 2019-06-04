@@ -1,7 +1,7 @@
 
 import numpy
 from scipy.integrate import odeint
-import matplotlib.pyplot
+# import matplotlib.pyplot
 
 def find_stem(stratified_string):
     """
@@ -16,7 +16,6 @@ def find_stem(stratified_string):
 
 def extract_x_positions(input_string):
     pass
-
 
 
 class EpiModel:
@@ -343,14 +342,23 @@ class EpiModel:
                 # print(compartment)
         return ode_equations
 
-    def find_infectious_multiplier(self, compartment_values):
-        return 1
+    def find_infectious_multiplier(self, flow_type):
+        """
+        find the multiplier to account for the infectious population in dynamic flows
+        """
+        if flow_type == "infection_density":
+            return self.tracked_quantities["infectious_population"]
+        elif flow_type == "infection_frequency":
+            return self.tracked_quantities["infectious_population"] / \
+                   self.tracked_quantities["total_population"]
+        else:
+            return 1
 
     def increment_compartment(self, ode_equations, compartment_number, increment):
         """
         general method to increment the odes by a value specified as an argument
         """
-        ode_equations[compartment_number] = ode_equations[compartment_number] + increment
+        ode_equations[compartment_number] += increment
         return ode_equations
 
     def get_parameter_value(self, parameter, time):
@@ -361,7 +369,7 @@ class EpiModel:
 
 
 if __name__ == "__main__":
-    sir_model = EpiModel(numpy.linspace(0, 60 / 365, 60).tolist(),
+    sir_model = EpiModel(numpy.linspace(0, 60 / 365, 61).tolist(),
                          ["susceptible", "infectious", "recovered"],
                          {"infectious": 0.001},
                          {"beta": 400, "recovery": 365 / 13, "infect_death": 1},
@@ -370,9 +378,10 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
-    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
-    matplotlib.pyplot.show()
-
-    # print(sir_model.outputs)
+    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+    # matplotlib.pyplot.show()
+    # print(sir_model.times)
+    #
+    # print(sir_model.outputs[:, 0])
 
 
