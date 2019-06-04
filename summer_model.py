@@ -3,6 +3,7 @@ import numpy
 from scipy.integrate import odeint
 import matplotlib.pyplot
 
+
 def find_stem(stratified_string):
     """
     find the stem of the compartment name as the text leading up to the first occurrence of "X"
@@ -14,8 +15,12 @@ def find_stem(stratified_string):
         return stratified_string[: first_x_location]
 
 
-def extract_x_positions(input_string):
-    pass
+def increment_compartment(ode_equations, compartment_number, increment):
+    """
+    general method to increment the odes by a value specified as an argument
+    """
+    ode_equations[compartment_number] += increment
+    return ode_equations
 
 
 class EpiModel:
@@ -268,7 +273,7 @@ class EpiModel:
         if len(self.death_flows) > 0:
             self.apply_compartment_death_flows(ode_equations, compartment_values, time)
         ode_equations = self.apply_universal_death_flow(ode_equations, compartment_values, time)
-        ode_equations = self.apply_birth_rate(ode_equations, compartment_values, time)
+        ode_equations = self.apply_birth_rate(ode_equations, compartment_values)
         return ode_equations
 
     def apply_transition_flows(self, ode_equations, compartment_values, time):
@@ -287,8 +292,8 @@ class EpiModel:
                 # calculate the flow and apply to the odes
                 from_compartment = list(self.compartment_values.keys()).index(flow["from"])
                 net_flow = adjusted_parameter * compartment_values[from_compartment] * infectious_population
-                ode_equations = self.increment_compartment(ode_equations, from_compartment, -net_flow)
-                ode_equations = self.increment_compartment(
+                ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
+                ode_equations = increment_compartment(
                     ode_equations, list(self.compartment_values.keys()).index(flow["to"]), net_flow)
 
                 # track any quantities dependent on flow rates
@@ -326,7 +331,7 @@ class EpiModel:
                 adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
                 from_compartment = list(self.compartment_values.keys()).index(flow["from"])
                 net_flow = adjusted_parameter * compartment_values[from_compartment]
-                ode_equations = self.increment_compartment(ode_equations, from_compartment, -net_flow)
+                ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
                 if "total_deaths" in self.tracked_quantities:
                     self.tracked_quantities["total_deaths"] += net_flow
         return ode_equations
@@ -339,20 +344,20 @@ class EpiModel:
             adjusted_parameter = self.get_parameter_value("universal_death_rate", time)
             from_compartment = list(self.compartment_values.keys()).index(compartment)
             net_flow = adjusted_parameter * compartment_values[from_compartment]
-            ode_equations = self.increment_compartment(ode_equations, from_compartment, -net_flow)
+            ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
 
             # track deaths in case births are meant to replace deaths
             if "total_deaths" in self.tracked_quantities:
                 self.tracked_quantities["total_deaths"] += net_flow
         return ode_equations
 
-    def apply_birth_rate(self, ode_equations, compartment_values, time):
+    def apply_birth_rate(self, ode_equations, compartment_values):
         """
         apply a population-wide death rate to all compartments
         """
-        self.increment_compartment(ode_equations, list(self.compartment_values.keys()).index(self.entry_compartment),
-                                   self.find_total_births(compartment_values))
-        return ode_equations
+        return increment_compartment(
+            ode_equations, list(self.compartment_values.keys()).index(self.entry_compartment),
+            self.find_total_births(compartment_values))
 
     def find_total_births(self, compartment_values):
         """
@@ -397,13 +402,6 @@ class EpiModel:
                 self.tracked_quantities["infectious_population"] += \
                     compartment_values[list(self.compartment_values.keys()).index(self.infectious_compartment)]
 
-    def increment_compartment(self, ode_equations, compartment_number, increment):
-        """
-        general method to increment the odes by a value specified as an argument
-        """
-        ode_equations[compartment_number] += increment
-        return ode_equations
-
     def get_parameter_value(self, parameter, time):
         """
         need to split this out as a function in order to allow stratification later
@@ -421,8 +419,8 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
-    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
-    # matplotlib.pyplot.show()
+    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+    matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
