@@ -19,6 +19,10 @@ def extract_x_positions(input_string):
 
 
 class EpiModel:
+    """
+    model construction methods
+    """
+
     def find_parameter_value(self, parameter_name, time):
         """
         find the value of a parameter with time-variant values trumping constant ones
@@ -28,6 +32,14 @@ class EpiModel:
         else:
             return self.parameters[parameter_name]
 
+    def output_to_user(self, comment):
+        """
+        short function to save the if statement in every call to output some information, may be adapted later and was
+        more important to the R version of the repository
+        """
+        if self.report:
+            print(comment)
+
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
@@ -36,6 +48,7 @@ class EpiModel:
         # attributes with specific format that are independent of user inputs
         self.compartment_values, self.tracked_quantities, self.output_connections, self.time_variants = \
             [{} for _ in range(4)]
+        self.derived_outputs = {"times": []}
         self.transition_flows, self.death_flows = [[] for _ in range(2)]
 
         # features that should not be changed
@@ -69,13 +82,6 @@ class EpiModel:
 
         # add any missing quantities that will be needed
         self.add_default_quantities()
-
-    def output_to_user(self, comment):
-        """
-        short function to save the if statement in every call to output some information
-        """
-        if self.report:
-            print(comment)
 
     def check_and_report_attributes(
             self, times, compartment_types, initial_conditions, parameters, requested_flows,
@@ -224,6 +230,10 @@ class EpiModel:
         flow["implement"] = 0
         self.death_flows.append(flow)
 
+    """
+    methods for model running
+    """
+
     def run_model(self):
         """
         integrate model odes
@@ -241,6 +251,12 @@ class EpiModel:
     def prepare_stratified_parameter_calculations(self):
         """
         for use in the stratified version
+        """
+        pass
+
+    def set_stopping_conditions(self):
+        """
+        this and the birth rate method are the only two outstanding methods to the base class still to develop
         """
         pass
 
@@ -285,10 +301,21 @@ class EpiModel:
         return ode_equations
 
     def track_derived_outputs(self, flow, net_flow):
-        pass
+        """
+        calculate derived quantities to be tracked
+        """
+        for output_type in self.output_connections:
+            if self.output_connections[output_type]["from"] in flow["from"] \
+                    and self.output_connections[output_type]["to"] in flow["to"]:
+                self.tracked_quantities[output_type] += net_flow
 
     def extend_derived_outputs(self, time):
-        pass
+        """
+        add the derived quantities being tracked to the end of the tracking vector
+        """
+        self.derived_outputs["times"].append(time)
+        for output_type in self.output_connections:
+            self.derived_outputs[output_type].append(self.tracked_quantities[output_type])
 
     def apply_compartment_death_flows(self, ode_equations, compartment_values, time):
         """
@@ -399,8 +426,8 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
-    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
-    matplotlib.pyplot.show()
+    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+    # matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
