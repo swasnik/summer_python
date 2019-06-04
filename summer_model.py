@@ -1,7 +1,7 @@
 
 import numpy
 from scipy.integrate import odeint
-# import matplotlib.pyplot
+import matplotlib.pyplot
 
 def find_stem(stratified_string):
     """
@@ -232,6 +232,7 @@ class EpiModel:
         self.prepare_stratified_parameter_calculations()
 
         def make_model_function(compartment_values, time):
+            self.update_tracked_quantities(compartment_values)
             return self.apply_all_flow_types_to_odes([0] * len(self.compartment_values), compartment_values, time)
 
         self.outputs = odeint(make_model_function, list(self.compartment_values.values()), self.times)
@@ -245,7 +246,7 @@ class EpiModel:
 
     def apply_all_flow_types_to_odes(self, ode_equations, compartment_values, time):
         """
-        dummy function for now
+        apply all flow types to a vector of zeros (deaths must come before births in case births replace deaths)
         """
         ode_equations = self.apply_transition_flows(ode_equations, compartment_values, time)
         if len(self.death_flows) > 0:
@@ -354,6 +355,26 @@ class EpiModel:
         else:
             return 1
 
+    def update_tracked_quantities(self, compartment_values):
+        """
+        update quantities that emerge during model running (not pre-defined functions of time)
+        """
+        for quantity in self.tracked_quantities:
+            self.tracked_quantities[quantity] = 0
+            if quantity == "infectious_population":
+                self.find_infectious_population(compartment_values)
+            elif quantity == "total_population":
+                self.tracked_quantities["total_population"] = sum(compartment_values)
+
+    def find_infectious_population(self, compartment_values):
+        """
+        calculations to find the effective infectious population
+        """
+        for compartment in self.compartment_values:
+            if find_stem(compartment) == self.infectious_compartment:
+                self.tracked_quantities["infectious_population"] += \
+                    compartment_values[list(self.compartment_values.keys()).index(self.infectious_compartment)]
+
     def increment_compartment(self, ode_equations, compartment_number, increment):
         """
         general method to increment the odes by a value specified as an argument
@@ -378,8 +399,8 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
     sir_model.run_model()
-    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
-    # matplotlib.pyplot.show()
+    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+    matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
