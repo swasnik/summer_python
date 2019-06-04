@@ -350,25 +350,20 @@ class EpiModel:
         """
         apply a population-wide death rate to all compartments
         """
-
-        # work out the total births to apply dependent on the approach requested
-        if self.birth_approach == "add_crude_birth_rate":
-            total_births = self.parameters["crude_birth_rate"] * sum(compartment_values)
-        elif self.birth_approach == "replace_deaths":
-            total_births = self.tracked_quantities["total_deaths"]
-        else:
-            total_births = 0
-
-        # split the total births across entry compartments
-        for compartment in self.compartment_values:
-            if find_stem(compartment) == self.entry_compartment:
-
-                # calculate adjustment to original stem entry rate
-                entry_fraction = 1
-                x_positions = extract_x_positions(compartment)
-
-                # print(compartment)
+        self.increment_compartment(ode_equations, list(self.compartment_values.keys()).index(self.entry_compartment),
+                                   self.find_total_births(compartment_values))
         return ode_equations
+
+    def find_total_births(self, compartment_values):
+        """
+        work out the total births to apply dependent on the approach requested
+        """
+        if self.birth_approach == "add_crude_birth_rate":
+            return self.parameters["crude_birth_rate"] * sum(compartment_values)
+        elif self.birth_approach == "replace_deaths":
+            return self.tracked_quantities["total_deaths"]
+        else:
+            return 0.0
 
     def find_infectious_multiplier(self, flow_type):
         """
