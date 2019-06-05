@@ -416,8 +416,23 @@ class EpiModel:
         return self.find_parameter_value(parameter, time)
 
 
+class StratifiedModel(EpiModel):
+    def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
+                 initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
+                 report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
+                 default_starting_compartment="", equilibrium_stopping_tolerance=None):
+        EpiModel.__init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
+                 initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
+                 report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
+                 default_starting_compartment="", equilibrium_stopping_tolerance=None)
+
+        self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify, \
+            self.parameter_components = [[]] * 5
+        self.heterogeneous_infectiousness = False
+
+
 if __name__ == "__main__":
-    sir_model = EpiModel(numpy.linspace(0, 60 / 365, 61).tolist(),
+    sir_model = StratifiedModel(numpy.linspace(0, 60 / 365, 61).tolist(),
                          ["susceptible", "infectious", "recovered"],
                          {"infectious": 0.001},
                          {"beta": 400, "recovery": 365 / 13, "infect_death": 1},
