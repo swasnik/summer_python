@@ -1,5 +1,6 @@
 ## SUMMER (python)
-Scalable, Universal Mathematical Models in R.
+Scalable, Universal Mathematical Modelling in R.
+
 This repository is a Python-coded version of the jtrauer/summer repository, coded in R.
 
 # Philosophical approach
