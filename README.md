@@ -26,4 +26,6 @@ compartment to balance the outflow from the origin compartment)
 * Ready visualisation of the process of model construction through flow-diagrams of inter-compartmental flows
 * Accessibility of modelling code and model construction to epidemiologists, policy-makers, clinicians, etc. who do not
 have an extensive background in mathematical modelling
+* Future extensibility to a broader range of capabilities as our group implements further elaboration of the modelling
+platform
 

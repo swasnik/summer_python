@@ -423,6 +423,137 @@ class StratifiedModel(EpiModel):
             self.parameter_components = [[]] * 5
         self.heterogeneous_infectiousness = False
 
+    """
+    pre-integration methods
+    """
+
+    def stratify(self, stratification_name, strata_request, compartment_types_to_stratify, adjustment_requests=(),
+                 requested_proportions=(), infectiousness_adjustments=(), report=True):
+        """
+        initial preparation and checks
+        """
+        strata_names = self.prepare_and_check_stratification(
+            stratification_name, strata_request, compartment_types_to_stratify, adjustment_requests, report)
+
+        # stratify the compartments
+        requested_proportions = self.tidy_starting_proportions(strata_names, requested_proportions, report)
+        self.stratify_compartments(
+            stratification_name, strata_names, adjustment_requests, requested_proportions, report)
+
+        # stratify the flows
+        self.stratify_transition_flows(stratification_name, strata_names, adjustment_requests, report)
+        self.stratify_entry_flows(stratification_name, strata_names, requested_proportions, report)
+        if len(self.death_flows) > 0:
+            self.stratify_death_flows(stratification_name, strata_names, adjustment_requests, report)
+        self.stratify_universal_death_rate(stratification_name, strata_names, adjustment_requests, report)
+
+        # heterogeneous infectiousness adjustments
+        self.apply_heterogeneous_infectiousness(stratification_name, strata_request, infectiousness_adjustments)
+
+        # work out ageing flows (comes first so that the compartment names are still in the unstratified form)
+        if stratification_name == "age":
+            self.set_ageing_rates(strata_names, report)
+
+    def prepare_and_check_stratification(self, stratification_name, strata_request, compartment_types_to_stratify,
+                                         adjustment_requests, report):
+        """
+        initial preparation and checks
+        """
+        return 0
+
+    def check_age_stratification(self, strata_request, compartment_types_to_stratify):
+        """
+        check that request meets the requirements for stratification by age
+        """
+        pass
+
+    def find_strata_names_from_input(self, stratification_name, strata_request, report):
+        """
+        find the names of the stratifications from a particular user request
+        """
+        pass
+
+    def check_compartment_request(self, compartment_types_to_stratify):
+        """
+        check the requested compartments to be stratified has been requested correctly
+        """
+        pass
+
+    def check_parameter_adjustment_requests(self, adjustment_requests, strata_names):
+        """
+        check parameter adjustments have been requested appropriately
+        """
+        pass
+
+    def tidy_starting_proportions(self, strata_names, requested_proportions, report):
+        """
+        prepare user inputs for starting proportions as needed
+        """
+        return 0
+
+    def stratify_compartments(self,
+                              stratification_name, strata_names, adjustment_requests, requested_proportions, report):
+        """
+        compartment stratification
+        """
+        pass
+
+    def stratify_transition_flows(self, stratification_name, strata_names, adjustment_requests, report):
+        """
+        stratify flows depending on whether inflow, outflow or both need replication
+        """
+        pass
+
+    def stratify_entry_flows(self, stratification_name, strata_names, requested_proportions, report):
+        """
+        stratify entry/recruitment/birth flows
+        """
+        pass
+
+    def stratify_death_flows(self, stratification_name, strata_names, adjustment_requests, report):
+        """
+        add compartment-specific death flows to death data frame
+        """
+        pass
+
+    def stratify_universal_death_rate(self, stratification_name, strata_names, adjustment_requests, report):
+        """
+        stratify the approach to universal, population-wide deaths (which can be made to vary by stratum)
+        """
+        pass
+
+    def add_adjusted_parameter(self, unadjusted_parameter, stratification_name, stratum, adjustment_requests):
+        """
+        find the adjustment request that is relevant to a particular unadjusted parameter and stratum, otherwise allow return of null
+        """
+        pass
+
+    def apply_heterogeneous_infectiousness(self, stratification_name, strata_request, infectiousness_adjustments):
+        """
+        work out infectiousness adjustments and set as model attributes
+        """
+        pass
+
+    def set_ageing_rates(self, strata_names, report):
+        """
+        set intercompartmental flows for ageing from one stratum to the next
+        """
+        pass
+
+    def add_stratified_flows(self, flow, stratification_name, strata_names, stratify_from, stratify_to,
+                             adjustment_requests, report):
+        """
+        add additional stratified flow to flow data frame
+        """
+        pass
+
+    def sort_absent_parameter_request(self, stratification_name, strata_names, stratum, stratify_from, stratify_to,
+                                      flow):
+        """
+        work out what to do if a specific parameter adjustment has not been requested
+        """
+        pass
+
 
 if __name__ == "__main__":
     sir_model = StratifiedModel(numpy.linspace(0, 60 / 365, 61).tolist(),
@@ -433,10 +564,14 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
+    sir_model.stratify("hiv", ["negative", "positive"], [],
+                       [{"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}}},
+                        {"infect_death": {"adjustments": {"negative": 0.5}}}],
+                       {"negative": 0.6, "positive": 0.4}, report=False)
     sir_model.run_model()
     outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
-    matplotlib.pyplot.show()
-    # print(sir_model.times)
+    # matplotlib.pyplot.show()
+    print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
 
