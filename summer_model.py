@@ -23,6 +23,13 @@ def increment_compartment(ode_equations, compartment_number, increment):
     return ode_equations
 
 
+def normalise_dict(value_dict):
+    """
+    simple function to normalise the values from a list
+    """
+    return {key: value_dict[key] / sum(value_dict.values()) for key in value_dict}
+
+
 class EpiModel:
     """
     model construction methods
@@ -436,7 +443,7 @@ class StratifiedModel(EpiModel):
             stratification_name, strata_request, compartment_types_to_stratify, adjustment_requests, report)
 
         # stratify the compartments
-        requested_proportions = self.tidy_starting_proportions(strata_names, requested_proportions, report)
+        requested_proportions = self.tidy_starting_proportions(strata_names, requested_proportions)
         self.stratify_compartments(
             stratification_name, strata_names, adjustment_requests, requested_proportions, report)
 
@@ -552,11 +559,19 @@ class StratifiedModel(EpiModel):
                     self.output_to_user("no request made for adjustment to %s within stratum " % parameter +
                                         "%s so accepting parent value by default" % stratum)
 
-    def tidy_starting_proportions(self, strata_names, requested_proportions, report):
+    def tidy_starting_proportions(self, strata_names, requested_proportions):
         """
         prepare user inputs for starting proportions as needed
         """
-        return 0
+
+        # assuming an equal proportion of the total for the compartment if not otherwise specified
+        for stratum in strata_names:
+            if stratum not in requested_proportions:
+                starting_proportion = 1 / len(strata_names)
+                requested_proportions[stratum] = starting_proportion
+                self.output_to_user("no starting proportion requested for stratum %s" % stratum +
+                                    " so allocated %s of total" % round(starting_proportion, self.reporting_sigfigs))
+        return normalise_dict(requested_proportions)
 
     def stratify_compartments(self,
                               stratification_name, strata_names, adjustment_requests, requested_proportions, report):
@@ -634,10 +649,10 @@ if __name__ == "__main__":
     sir_model.stratify("potatoes", ["negative", "positive"], [],
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
                         "infect_death": {"adjustments": {"negative": 0.5}}},
-                       {"negative": 0.6, "positive": 0.4}, report=True)
+                       {"negative": 0.6}, report=True)
     sir_model.run_model()
-    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
-    # matplotlib.pyplot.show()
+    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+    # # matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
