@@ -508,7 +508,7 @@ class StratifiedModel(EpiModel):
             strata_names = numpy.arange(1, strata_request + 1)
             self.output_to_user("integer provided as strata labels for stratification, hence strata implemented " +
                                 "are integers from 1 to %s" % strata_request)
-        elif type(strata_request) != str:
+        elif type(strata_request) == float:
             raise ValueError("number passed as request for strata labels, but not an integer greater than one, " +
                              "unclear what to do, stratification failed")
         else:
@@ -538,7 +538,19 @@ class StratifiedModel(EpiModel):
         """
         check parameter adjustments have been requested appropriately
         """
-        pass
+        for parameter in adjustment_requests:
+
+            # check all the requested strata for parameter adjustments were strata that were requested
+            if any([requested_stratum not in strata_names
+                    for requested_stratum in adjustment_requests[parameter]["adjustments"]]):
+                raise ValueError("stratum requested in adjustments but unavailable")
+
+            # if any strata were not requested, assume a value of zero
+            for stratum in strata_names:
+                if stratum not in adjustment_requests[parameter]["adjustments"]:
+                    adjustment_requests[parameter]["adjustments"][stratum] = 1
+                    self.output_to_user("no request made for adjustment to %s within stratum " % parameter +
+                                        "%s so accepting parent value by default" % stratum)
 
     def tidy_starting_proportions(self, strata_names, requested_proportions, report):
         """
@@ -619,9 +631,9 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
-    sir_model.stratify("potatoes", 10, [],
-                       [{"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}}},
-                        {"infect_death": {"adjustments": {"negative": 0.5}}}],
+    sir_model.stratify("potatoes", ["negative", "positive"], [],
+                       {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
+                        "infect_death": {"adjustments": {"negative": 0.5}}},
                        {"negative": 0.6, "positive": 0.4}, report=True)
     sir_model.run_model()
     outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
