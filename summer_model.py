@@ -459,19 +459,35 @@ class StratifiedModel(EpiModel):
         """
         initial preparation and checks
         """
-        return 0
+        self.report = report
+        if stratification_name == "age":
+            strata_request = self.check_age_stratification(strata_request, compartment_types_to_stratify)
+        else:
+            self.output_to_user("\nimplementing stratification for: %s" % stratification_name)
+
+        # make sure all stratification names are characters
+        if type(stratification_name) != str:
+            stratification_name = str(stratification_name)
+            self.output_to_user("converting stratification name %s to character" % stratification_name)
+
+        # record stratification as model attribute, find the names to apply strata and check requests
+        self.strata.append(stratification_name)
+        strata_names = self.find_strata_names_from_input(stratification_name, strata_request, report)
+        self.check_compartment_request(compartment_types_to_stratify)
+        self.check_parameter_adjustment_requests(adjustment_requests, strata_names)
+        return strata_names
 
     def check_age_stratification(self, strata_request, compartment_types_to_stratify):
         """
         check that request meets the requirements for stratification by age
         """
-        pass
+        return 0
 
     def find_strata_names_from_input(self, stratification_name, strata_request, report):
         """
         find the names of the stratifications from a particular user request
         """
-        pass
+        return 0
 
     def check_compartment_request(self, compartment_types_to_stratify):
         """
@@ -567,11 +583,11 @@ if __name__ == "__main__":
     sir_model.stratify("hiv", ["negative", "positive"], [],
                        [{"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}}},
                         {"infect_death": {"adjustments": {"negative": 0.5}}}],
-                       {"negative": 0.6, "positive": 0.4}, report=False)
+                       {"negative": 0.6, "positive": 0.4}, report=True)
     sir_model.run_model()
     outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
     # matplotlib.pyplot.show()
-    print(sir_model.times)
+    # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
 
