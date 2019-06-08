@@ -472,7 +472,7 @@ class StratifiedModel(EpiModel):
 
         # record stratification as model attribute, find the names to apply strata and check requests
         self.strata.append(stratification_name)
-        strata_names = self.find_strata_names_from_input(stratification_name, strata_request, report)
+        strata_names = self.find_strata_names_from_input(strata_request)
         self.check_compartment_request(compartment_types_to_stratify)
         self.check_parameter_adjustment_requests(adjustment_requests, strata_names)
         return strata_names
@@ -498,11 +498,24 @@ class StratifiedModel(EpiModel):
             self.output_to_user("requested age strata not ordered, so have been sorted to: %s" % strata_request)
         return strata_request
 
-    def find_strata_names_from_input(self, stratification_name, strata_request, report):
+    def find_strata_names_from_input(self, strata_request):
         """
         find the names of the stratifications from a particular user request
         """
-        return 0
+        if type(strata_request) == list and (strata_request) == 0:
+            raise ValueError("requested to stratify, but no strata provided")
+        elif type(strata_request) == int:
+            strata_names = numpy.arange(1, strata_request + 1)
+            self.output_to_user("integer provided as strata labels for stratification, hence strata implemented " +
+                                "are integers from 1 to %s" % strata_request)
+        elif type(strata_request) != str:
+            raise ValueError("number passed as request for strata labels, but not an integer greater than one, " +
+                             "unclear what to do, stratification failed")
+        else:
+            strata_names = strata_request
+        for name in strata_names:
+            self.output_to_user("adding stratum: %s" % name)
+        return strata_names
 
     def check_compartment_request(self, compartment_types_to_stratify):
         """
@@ -595,7 +608,7 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
-    sir_model.stratify("age", [3, 2], [],
+    sir_model.stratify("potatoes", 10, [],
                        [{"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}}},
                         {"infect_death": {"adjustments": {"negative": 0.5}}}],
                        {"negative": 0.6, "positive": 0.4}, report=True)
