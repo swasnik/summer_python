@@ -481,7 +481,22 @@ class StratifiedModel(EpiModel):
         """
         check that request meets the requirements for stratification by age
         """
-        return 0
+        self.output_to_user("implementing age-specific stratification with specific behaviour")
+        if "age" in self.strata:
+            raise ValueError("requested age stratification, but has specific behaviour and can only be applied once")
+        elif len(compartment_types_to_stratify) > 0:
+            raise ValueError("requested age stratification, but compartment request should be passed as empty vector " +
+                             "in order to apply to all compartments")
+        elif any([type(stratum) != int and type(stratum) != float for stratum in strata_request]):
+            raise ValueError("inputs for age strata breakpoints are not numeric")
+        if 0 not in strata_request:
+            self.output_to_user("adding age stratum called '0' as not requested, to represent those aged less than %s"
+                                % min(strata_request))
+            strata_request.append(0)
+        if strata_request != sorted(strata_request):
+            strata_request = sorted(strata_request)
+            self.output_to_user("requested age strata not ordered, so have been sorted to: %s" % strata_request)
+        return strata_request
 
     def find_strata_names_from_input(self, stratification_name, strata_request, report):
         """
@@ -580,7 +595,7 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
-    sir_model.stratify("hiv", ["negative", "positive"], [],
+    sir_model.stratify("age", [3, 2], [],
                        [{"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}}},
                         {"infect_death": {"adjustments": {"negative": 0.5}}}],
                        {"negative": 0.6, "positive": 0.4}, report=True)
