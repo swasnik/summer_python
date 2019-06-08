@@ -521,7 +521,18 @@ class StratifiedModel(EpiModel):
         """
         check the requested compartments to be stratified has been requested correctly
         """
-        pass
+
+        # if vector of length zero passed, stratify all the compartment types in the model
+        if len(compartment_types_to_stratify) == 0:
+            self.output_to_user("no compartment names specified for this stratification, " +
+                                "so stratification applied to all model compartments")
+            self.compartment_types_to_stratify = self.compartment_types
+
+        # otherwise check all the requested compartments are available and implement the user request
+        elif any([compartment not in self.compartment_types for compartment in self.compartment_types_to_stratify]):
+            raise ValueError("requested compartment or compartments to be stratified are not available in this model")
+        else:
+            self.compartment_types_to_stratify = compartment_types_to_stratify
 
     def check_parameter_adjustment_requests(self, adjustment_requests, strata_names):
         """
