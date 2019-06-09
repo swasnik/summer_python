@@ -24,7 +24,7 @@ def create_stratum_name(stratification_name, stratum_name):
     """
     generate the name just for the particular stratification
     """
-    return "X" + stratification_name + "_" + stratum_name
+    return "X" + stratification_name + "_" + str(stratum_name)
 
 
 def increment_compartment(ode_equations, compartment_number, increment):
@@ -462,7 +462,7 @@ class StratifiedModel(EpiModel):
     """
 
     def stratify(self, stratification_name, strata_request, compartment_types_to_stratify, adjustment_requests=(),
-                 requested_proportions=(), infectiousness_adjustments=(), report=True):
+                 requested_proportions={}, infectiousness_adjustments=(), report=True):
         """
         initial preparation and checks
         """
@@ -475,7 +475,7 @@ class StratifiedModel(EpiModel):
 
         # stratify the flows
         self.stratify_transition_flows(stratification_name, strata_names, adjustment_requests, report)
-        self.stratify_entry_flows(stratification_name, strata_names, requested_proportions, report)
+        self.stratify_entry_flows(stratification_name, strata_names, requested_proportions)
         if len(self.death_flows) > 0:
             self.stratify_death_flows(stratification_name, strata_names, adjustment_requests, report)
         self.stratify_universal_death_rate(stratification_name, strata_names, adjustment_requests, report)
@@ -627,11 +627,30 @@ class StratifiedModel(EpiModel):
                     adjustment_requests, report)
         self.output_to_user("stratified transition flows matrix:\n%s" % self.transition_flows)
 
-    def stratify_entry_flows(self, stratification_name, strata_names, requested_proportions, report):
+    def stratify_entry_flows(self, stratification_name, strata_names, requested_proportions):
         """
         stratify entry/recruitment/birth flows
         """
-        pass
+        entry_fractions = {}
+
+        # work out parameter values for stratifying the entry proportion adjustments
+        if self.entry_compartment in self.compartment_types_to_stratify:
+            for stratum in strata_names:
+                entry_fraction_name = create_stratified_name("entry_fraction", stratification_name, stratum)
+                if stratification_name == "age" and str(stratum) == "0":
+                    entry_fractions[entry_fraction_name] = 1.0
+                    continue
+                elif stratification_name == "age":
+                    entry_fractions[entry_fraction_name] = 0.0
+                    continue
+                elif "adjustments" in requested_proportions and stratum in requested_proportions["adjustments"]:
+                    entry_fractions[entry_fraction_name] = requested_proportions["adjustments"][stratum]
+                    self.output_to_user("assigning specified proportion of starting population to %s" % stratum)
+                else:
+                    entry_fractions[entry_fraction_name] = 1.0 / len(strata_names)
+                    self.output_to_user("assuming %s " % entry_fractions[entry_fraction_name] +
+                                        "of starting population to be assigned to %s stratum by default" % stratum)
+        self.parameters.update(normalise_dict(entry_fractions))
 
     def stratify_death_flows(self, stratification_name, strata_names, adjustment_requests, report):
         """
@@ -687,10 +706,12 @@ if __name__ == "__main__":
                           {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
                          report=False)
-    sir_model.stratify("potatoes", ["negative", "positive"], [],
+    sir_model.stratify("hiv", ["negative", "positive"], [],
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
                         "infect_death": {"adjustments": {"negative": 0.5}}},
-                       {"negative": 0.6}, report=True)
+                       {"negative": 0.6}, report=False)
+    # sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
+
     # sir_model.run_model()
     # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
     # # matplotlib.pyplot.show()
