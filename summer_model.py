@@ -454,7 +454,7 @@ class StratifiedModel(EpiModel):
                  default_starting_compartment="", equilibrium_stopping_tolerance=None)
 
         self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify, \
-            self.parameter_components = [[]] * 5
+            self.parameter_components = [[] for _ in range(5)]
         self.heterogeneous_infectiousness = False
 
     """
@@ -618,7 +618,14 @@ class StratifiedModel(EpiModel):
         """
         stratify flows depending on whether inflow, outflow or both need replication
         """
-        pass
+        for flow in range(len(self.transition_flows)):
+            if self.transition_flows[flow]["implement"] == len(self.strata) - 1:
+                self.add_stratified_flows(
+                    flow, stratification_name, strata_names,
+                    find_stem(self.transition_flows[flow]["from"]) in self.compartment_types_to_stratify,
+                    find_stem(self.transition_flows[flow]["to"]) in self.compartment_types_to_stratify,
+                    adjustment_requests, report)
+        self.output_to_user("stratified transition flows matrix:\n%s" % self.transition_flows)
 
     def stratify_entry_flows(self, stratification_name, strata_names, requested_proportions, report):
         """
@@ -684,7 +691,7 @@ if __name__ == "__main__":
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
                         "infect_death": {"adjustments": {"negative": 0.5}}},
                        {"negative": 0.6}, report=True)
-    sir_model.run_model()
+    # sir_model.run_model()
     # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
     # # matplotlib.pyplot.show()
     # print(sir_model.times)
