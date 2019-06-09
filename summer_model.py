@@ -2,6 +2,7 @@
 import numpy
 from scipy.integrate import odeint
 import matplotlib.pyplot
+import copy
 
 
 def find_stem(stratified_string):
@@ -9,10 +10,21 @@ def find_stem(stratified_string):
     find the stem of the compartment name as the text leading up to the first occurrence of "X"
     """
     first_x_location = stratified_string.find("X")
-    if first_x_location == -1:
-        return stratified_string
-    else:
-        return stratified_string[: first_x_location]
+    return stratified_string if first_x_location == -1 else stratified_string[: first_x_location]
+
+
+def create_stratified_name(stem, stratification_name, stratum_name):
+    """
+    function to generate a standardised stratified compartment name
+    """
+    return stem + create_stratum_name(stratification_name, stratum_name)
+
+
+def create_stratum_name(stratification_name, stratum_name):
+    """
+    generate the name just for the particular stratification
+    """
+    return "X" + stratification_name + "_" + stratum_name
 
 
 def increment_compartment(ode_equations, compartment_number, increment):
@@ -417,6 +429,21 @@ class EpiModel:
 
 
 class StratifiedModel(EpiModel):
+    def add_compartment(self, new_compartment_name, new_compartment_value):
+        """
+        add a compartment by specifying its name and value to take
+        """
+        self.compartment_values[new_compartment_name] = new_compartment_value
+        self.output_to_user("adding compartment: %s" % new_compartment_name)
+
+    def remove_compartment(self, compartment):
+        """
+        remove a compartment by taking the element out of the compartment values attribute
+        """
+        self.removed_compartments.append(compartment)
+        del self.compartment_values[compartment]
+        self.output_to_user("removing compartment: %s" % compartment)
+
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
@@ -444,8 +471,7 @@ class StratifiedModel(EpiModel):
 
         # stratify the compartments
         requested_proportions = self.tidy_starting_proportions(strata_names, requested_proportions)
-        self.stratify_compartments(
-            stratification_name, strata_names, adjustment_requests, requested_proportions, report)
+        self.stratify_compartments(stratification_name, strata_names, requested_proportions)
 
         # stratify the flows
         self.stratify_transition_flows(stratification_name, strata_names, adjustment_requests, report)
@@ -573,12 +599,20 @@ class StratifiedModel(EpiModel):
                                     " so allocated %s of total" % round(starting_proportion, self.reporting_sigfigs))
         return normalise_dict(requested_proportions)
 
-    def stratify_compartments(self,
-                              stratification_name, strata_names, adjustment_requests, requested_proportions, report):
+    def stratify_compartments(self, stratification_name, strata_names, requested_proportions):
         """
         compartment stratification
         """
-        pass
+
+        # find the existing compartments that need stratification
+        for compartment in copy.copy(self.compartment_values):
+            if find_stem(compartment) in self.compartment_types_to_stratify:
+
+                # add and remove compartments
+                for stratum in strata_names:
+                    self.add_compartment(create_stratified_name(compartment, stratification_name, stratum),
+                                         self.compartment_values[compartment] * requested_proportions[stratum])
+                self.remove_compartment(compartment)
 
     def stratify_transition_flows(self, stratification_name, strata_names, adjustment_requests, report):
         """
