@@ -456,6 +456,7 @@ class StratifiedModel(EpiModel):
         self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify, \
             self.parameter_components = [[] for _ in range(5)]
         self.heterogeneous_infectiousness = False
+        self.infectiousness_adjustments = {}
 
     """
     pre-integration methods
@@ -706,7 +707,17 @@ class StratifiedModel(EpiModel):
         """
         work out infectiousness adjustments and set as model attributes
         """
-        pass
+        if len(infectiousness_adjustments) == 0:
+            self.output_to_user("heterogeneous infectiousness not requested for this stratification")
+        elif self.infectious_compartment not in self.compartment_types_to_stratify:
+            raise ValueError("request for infectiousness stratification does not apply to the infectious compartment")
+        else:
+            self.heterogeneous_infectiousness = True
+            for stratum in infectiousness_adjustments:
+                if stratum not in strata_request:
+                    raise ValueError("stratum to have infectiousness modified not found within requested strata")
+                adjustment_name = create_stratified_name("", stratification_name, stratum)
+                self.infectiousness_adjustments[adjustment_name] = infectiousness_adjustments[stratum]
 
     def set_ageing_rates(self, strata_names, report):
         """
