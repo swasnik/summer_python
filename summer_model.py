@@ -312,7 +312,7 @@ class EpiModel:
 
         # find adjusted parameter value
         for flow in self.transition_flows:
-            if flow["implement"] == 0:
+            if flow["implement"] == len(self.strata):
                 adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
 
                 # find from compartment and "infectious population", which is 1 for standard flows
@@ -356,7 +356,7 @@ class EpiModel:
         equivalent method to for transition flows above, but for deaths
         """
         for flow in self.death_flows:
-            if flow["implement"] == 0:
+            if flow["implement"] == len(self.strata):
                 adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
                 from_compartment = list(self.compartment_values.keys()).index(flow["from"])
                 net_flow = adjusted_parameter * compartment_values[from_compartment]
@@ -827,6 +827,7 @@ class StratifiedModel(EpiModel):
             if flow["parameter"] not in parameters_to_adjust:
                 parameters_to_adjust.append(flow["parameter"])
         parameters_to_adjust.append("universal_death_rate")
+        print(parameters_to_adjust)
         for parameter in parameters_to_adjust:
             self.find_parameter_components(parameter)
 
@@ -858,9 +859,12 @@ class StratifiedModel(EpiModel):
 
     def get_parameter_value(self, parameter, time):
         """
-        calculate adjusted parameter value from pre-calculated product of constant components and individual time variants
+        calculate adjusted parameter value from pre-calculated product of constant components and time variants
         """
-        pass
+        adjusted_parameter = self.parameter_components[parameter]["constant_value"]
+        for time_variant in self.parameter_components[parameter]["time_variants"]:
+            adjusted_parameter *= self.time_variants[time_variant](time)
+        return adjusted_parameter
 
     def find_infectious_population(self, compartment_values):
         """
@@ -888,7 +892,7 @@ if __name__ == "__main__":
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
                         "infect_death": {"adjustments": {"negative": 0.5}}},
                        {"negative": 0.6}, report=False)
-    sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
+    # sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
     sir_model.run_model()
 
     # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
