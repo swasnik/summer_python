@@ -24,7 +24,17 @@ def create_stratum_name(stratification_name, stratum_name):
     """
     generate the name just for the particular stratification
     """
-    return "X" + stratification_name + "_" + str(stratum_name)
+    return "X%s_%s" % (stratification_name, str(stratum_name))
+
+
+def extract_reversed_x_positions(parameter):
+    """
+    find the positions within a string which are X and return as list reversed, including length of list
+    """
+    result = [loc for loc in range(len(parameter)) if parameter[loc] == "X"]
+    result.append(len(parameter))
+    result.reverse()
+    return result
 
 
 def increment_compartment(ode_equations, compartment_number, increment):
@@ -453,10 +463,10 @@ class StratifiedModel(EpiModel):
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
                  default_starting_compartment="", equilibrium_stopping_tolerance=None)
 
-        self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify, \
-            self.parameter_components = [[] for _ in range(5)]
+        self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify = \
+            [[] for _ in range(4)]
         self.heterogeneous_infectiousness = False
-        self.infectiousness_adjustments = {}
+        self.infectiousness_adjustments, self.parameter_components = [{} for _ in range(2)]
 
     """
     pre-integration methods
@@ -824,7 +834,27 @@ class StratifiedModel(EpiModel):
         """
         extract the components of the stratified parameter into a list structure
         """
-        pass
+
+        # collate all the parameter components into time-variant or constant
+        self.parameter_components[parameter] = {"time_variants": [], "constants": [], "constant_value": 1}
+        for x_instance in extract_reversed_x_positions(parameter):
+            component = parameter[: x_instance]
+            is_time_variant = component in self.time_variants
+            if component in self.overwrite_parameter and is_time_variant:
+                self.parameter_components[parameter] = \
+                    {"time_variants": [component], "constants": [], "constant_value": 1}
+                break
+            elif component in self.overwrite_parameter and not is_time_variant:
+                self.parameter_components[parameter] = \
+                    {"time_variants": [], "constants": [component], "constant_value": 1}
+            elif is_time_variant:
+                self.parameter_components[parameter]["time_variants"].append(component)
+            elif component in self.parameters:
+                self.parameter_components[parameter]["constants"].append(component)
+
+        # pre-calculate the constant component by multiplying through all the constant values
+        for constant_parameter in self.parameter_components[parameter]["constants"]:
+            self.parameter_components[parameter]["constant_value"] *= self.parameters[constant_parameter]
 
     def get_parameter_value(self, parameter, time):
         """
@@ -860,6 +890,7 @@ if __name__ == "__main__":
                        {"negative": 0.6}, report=False)
     sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
     sir_model.run_model()
+
     # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
     # # matplotlib.pyplot.show()
     # print(sir_model.times)
