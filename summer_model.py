@@ -784,7 +784,20 @@ class StratifiedModel(EpiModel):
         """
         work out what to do if a specific parameter adjustment has not been requested
         """
-        return 0
+
+        # default behaviour if not specified is to split the parameter into equal parts if to compartment is split
+        if not stratify_from and stratify_to:
+            self.output_to_user("\tsplitting existing parameter value %s into %s equal parts"
+                                % (self.transition_flows[flow]["parameter"], len(strata_names)))
+            self.parameters[
+                create_stratified_name(self.transition_flows[flow]["parameter"], stratification_name, stratum)] = \
+                1.0 / len(strata_names)
+
+        # otherwise if no request, retain the existing parameter
+        else:
+            parameter_name = self.transition_flows[flow]["parameter"]
+            self.output_to_user("\tretaining existing parameter value %s" % parameter_name)
+        return parameter_name
 
 
 if __name__ == "__main__":
