@@ -744,14 +744,47 @@ class StratifiedModel(EpiModel):
         """
         add additional stratified flow to flow data frame
         """
-        pass
+        if stratify_from or stratify_to:
+            self.output_to_user(
+                "for flow from %s to %s in stratification %s"
+                % (self.transition_flows[flow]["from"], self.transition_flows[flow]["to"], stratification_name))
+
+            # loop over each stratum in the requested stratification structure
+            for stratum in strata_names:
+
+                # find parameter name
+                parameter_name = self.add_adjusted_parameter(
+                    self.transition_flows[flow]["parameter"], stratification_name, stratum, adjustment_requests)
+                if not parameter_name:
+                    parameter_name = self.sort_absent_parameter_request(
+                        stratification_name, strata_names, stratum, stratify_from, stratify_to, flow)
+
+                # determine whether to and/or from compartments are stratified
+                if stratify_from:
+                    from_compartment = create_stratified_name(
+                        self.transition_flows[flow]["from"], stratification_name, stratum)
+                else:
+                    from_compartment = self.transition_flows[flow]["from"]
+                if stratify_to:
+                    to_compartment = create_stratified_name(
+                        self.transition_flows[flow]["to"], stratification_name, stratum)
+                else:
+                    to_compartment = self.transition_flows[flow]["to"]
+
+                # add the new flow
+                self.transition_flows.append(
+                    {"type": self.transition_flows[flow]["type"],
+                     "parameter": parameter_name,
+                     "from": from_compartment,
+                     "to": to_compartment,
+                     "implement": len(self.strata)})
 
     def sort_absent_parameter_request(self, stratification_name, strata_names, stratum, stratify_from, stratify_to,
                                       flow):
         """
         work out what to do if a specific parameter adjustment has not been requested
         """
-        pass
+        return 0
 
 
 if __name__ == "__main__":
