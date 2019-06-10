@@ -230,9 +230,9 @@ class EpiModel:
                 self.add_transition_flow(flow)
 
             if "infection" in flow["type"]:
-                self.tracked_quantities["infectious_population"] = 0
+                self.tracked_quantities["infectious_population"] = 0.0
             if flow["type"] == "infection_frequency":
-                self.tracked_quantities["total_population"] = 0
+                self.tracked_quantities["total_population"] = 0.0
 
         # retain a copy of the original flows for the purposes of graphing, etc.
         self.unstratified_flows = self.transition_flows
@@ -878,7 +878,18 @@ class StratifiedModel(EpiModel):
         """
         calculations to find the effective infectious population
         """
-        pass
+
+        # loop through all compartments and find the ones representing active infectious disease
+        for compartment in self.compartment_values:
+            if find_stem(compartment) == self.infectious_compartment:
+
+                # assume homogeneous infectiousness until requested otherwise
+                infectiousness_modifier = 1.0
+
+                # haven't yet done heterogeneous infectiousness
+
+                self.tracked_quantities["infectious_population"] += \
+                    compartment_values[list(self.compartment_values.keys()).index(compartment)] * infectiousness_modifier
 
     def apply_birth_rate(self, ode_equations, compartment_values, time):
         """
@@ -922,9 +933,11 @@ if __name__ == "__main__":
 
     sir_model.run_model()
 
-    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+    print(sir_model.compartment_values)
 
-    print(sir_model.outputs)
+    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
+
+    # print(sir_model.outputs)
 
     matplotlib.pyplot.show()
     # print(sir_model.times)
