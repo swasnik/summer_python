@@ -477,8 +477,8 @@ class StratifiedModel(EpiModel):
         self.stratify_transition_flows(stratification_name, strata_names, adjustment_requests, report)
         self.stratify_entry_flows(stratification_name, strata_names, requested_proportions)
         if len(self.death_flows) > 0:
-            self.stratify_death_flows(stratification_name, strata_names, adjustment_requests, report)
-        self.stratify_universal_death_rate(stratification_name, strata_names, adjustment_requests, report)
+            self.stratify_death_flows(stratification_name, strata_names, adjustment_requests)
+        self.stratify_universal_death_rate(stratification_name, strata_names, adjustment_requests)
 
         # heterogeneous infectiousness adjustments
         self.apply_heterogeneous_infectiousness(stratification_name, strata_request, infectiousness_adjustments)
@@ -652,7 +652,7 @@ class StratifiedModel(EpiModel):
                                         "of starting population to be assigned to %s stratum by default" % stratum)
         self.parameters.update(normalise_dict(entry_fractions))
 
-    def stratify_death_flows(self, stratification_name, strata_names, adjustment_requests, report):
+    def stratify_death_flows(self, stratification_name, strata_names, adjustment_requests):
         """
         add compartment-specific death flows to death data frame
         """
@@ -669,17 +669,22 @@ class StratifiedModel(EpiModel):
                          "from": create_stratified_name(self.death_flows[flow]["from"], stratification_name, stratum),
                          "implement": len(self.strata)})
 
-    def stratify_universal_death_rate(self, stratification_name, strata_names, adjustment_requests, report):
+    def stratify_universal_death_rate(self, stratification_name, strata_names, adjustment_requests):
         """
         stratify the approach to universal, population-wide deaths (which can be made to vary by stratum)
+        adjust each parameter that refers to the universal death rate according to user request
         """
-        pass
+        for parameter in [param for param in self.parameters if find_stem(param) == "universal_death_rate"]:
+            for stratum in strata_names:
+                self.add_adjusted_parameter(parameter, stratification_name, stratum, adjustment_requests)
 
     def add_adjusted_parameter(self, unadjusted_parameter, stratification_name, stratum, adjustment_requests):
         """
-        find the adjustment request that is relevant to a particular unadjusted parameter and stratum, otherwise allow return of null
+        find the adjustment request that is relevant to a particular unadjusted parameter and stratum
+        otherwise allow return of None
         """
         self.output_to_user("modifying %s for %s stratum of %s" % (unadjusted_parameter, stratum, stratification_name))
+        parameter_adjustment_name = None
 
         # find the adjustment request that is an extension of the base parameter type being considered
         for parameter_request in adjustment_requests:
