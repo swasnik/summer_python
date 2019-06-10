@@ -479,7 +479,7 @@ class StratifiedModel(EpiModel):
         self.stratify_compartments(stratification_name, strata_names, requested_proportions)
 
         # stratify the flows
-        self.stratify_transition_flows(stratification_name, strata_names, adjustment_requests, report)
+        self.stratify_transition_flows(stratification_name, strata_names, adjustment_requests)
         self.stratify_entry_flows(stratification_name, strata_names, requested_proportions)
         if len(self.death_flows) > 0:
             self.stratify_death_flows(stratification_name, strata_names, adjustment_requests)
@@ -615,7 +615,7 @@ class StratifiedModel(EpiModel):
                                          self.compartment_values[compartment] * requested_proportions[stratum])
                 self.remove_compartment(compartment)
 
-    def stratify_transition_flows(self, stratification_name, strata_names, adjustment_requests, report):
+    def stratify_transition_flows(self, stratification_name, strata_names, adjustment_requests):
         """
         stratify flows depending on whether inflow, outflow or both need replication
         """
@@ -625,7 +625,7 @@ class StratifiedModel(EpiModel):
                     flow, stratification_name, strata_names,
                     find_stem(self.transition_flows[flow]["from"]) in self.compartment_types_to_stratify,
                     find_stem(self.transition_flows[flow]["to"]) in self.compartment_types_to_stratify,
-                    adjustment_requests, report)
+                    adjustment_requests)
         self.output_to_user("stratified transition flows matrix:\n%s" % self.transition_flows)
 
     def stratify_entry_flows(self, stratification_name, strata_names, requested_proportions):
@@ -740,7 +740,7 @@ class StratifiedModel(EpiModel):
                      "implement": len(self.strata)})
 
     def add_stratified_flows(self, flow, stratification_name, strata_names, stratify_from, stratify_to,
-                             adjustment_requests, report):
+                             adjustment_requests):
         """
         add additional stratified flow to flow data frame
         """
