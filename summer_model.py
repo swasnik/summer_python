@@ -799,6 +799,51 @@ class StratifiedModel(EpiModel):
             self.output_to_user("\tretaining existing parameter value %s" % parameter_name)
         return parameter_name
 
+    """
+    methods to be called during the process of model running
+    """
+
+    def prepare_stratified_parameter_calculations(self):
+        """
+        prior to integration commencing, work out what the components are of each parameter being implemented
+        """
+
+        # create list of all the parameters that we need to find the list of adjustments for
+        parameters_to_adjust = []
+        for flow in [f for f in self.transition_flows if f["implement"] == len(self.strata)]:
+            if flow["parameter"] not in parameters_to_adjust:
+                parameters_to_adjust.append(flow["parameter"])
+        for flow in [f for f in self.death_flows if f["implement"] == len(self.strata)]:
+            if flow["parameter"] not in parameters_to_adjust:
+                parameters_to_adjust.append(flow["parameter"])
+        parameters_to_adjust.append("universal_death_rate")
+        for parameter in parameters_to_adjust:
+            self.find_parameter_components(parameter)
+
+    def find_parameter_components(self, parameter):
+        """
+        extract the components of the stratified parameter into a list structure
+        """
+        pass
+
+    def get_parameter_value(self, parameter, time):
+        """
+        calculate adjusted parameter value from pre-calculated product of constant components and individual time variants
+        """
+        pass
+
+    def find_infectious_population(self, compartment_values):
+        """
+        calculations to find the effective infectious population
+        """
+        pass
+
+    def apply_birth_rate_stratified(self, ode_equations, compartment_values, time):
+        """
+        apply a population-wide death rate to all compartments
+        """
+        pass
+
 
 if __name__ == "__main__":
     sir_model = StratifiedModel(numpy.linspace(0, 60 / 365, 61).tolist(),
@@ -814,7 +859,7 @@ if __name__ == "__main__":
                         "infect_death": {"adjustments": {"negative": 0.5}}},
                        {"negative": 0.6}, report=False)
     sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
-    # sir_model.run_model()
+    sir_model.run_model()
     # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
     # # matplotlib.pyplot.show()
     # print(sir_model.times)
