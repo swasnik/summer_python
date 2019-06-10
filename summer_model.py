@@ -656,7 +656,18 @@ class StratifiedModel(EpiModel):
         """
         add compartment-specific death flows to death data frame
         """
-        pass
+        for flow in range(len(self.death_flows)):
+            if self.death_flows[flow]["implement"] == len(self.strata) - 1:
+                for stratum in strata_names:
+                    parameter_name = self.add_adjusted_parameter(
+                        self.death_flows[flow]["parameter"], stratification_name, stratum, adjustment_requests)
+                    if not parameter_name:
+                        parameter_name = self.death_flows[flow]["parameter"]
+                    self.death_flows.append(
+                        {"type": self.death_flows[flow]["type"],
+                         "parameter": parameter_name,
+                         "from": create_stratified_name(self.death_flows[flow]["from"], stratification_name, stratum),
+                         "implement": len(self.strata)})
 
     def stratify_universal_death_rate(self, stratification_name, strata_names, adjustment_requests, report):
         """
@@ -668,7 +679,23 @@ class StratifiedModel(EpiModel):
         """
         find the adjustment request that is relevant to a particular unadjusted parameter and stratum, otherwise allow return of null
         """
-        pass
+        self.output_to_user("modifying %s for %s stratum of %s" % (unadjusted_parameter, stratum, stratification_name))
+
+        # find the adjustment request that is an extension of the base parameter type being considered
+        for parameter_request in adjustment_requests:
+            if unadjusted_parameter.startswith(parameter_request):
+                parameter_adjustment_name = create_stratified_name(unadjusted_parameter, stratification_name, stratum)
+
+                # implement user request (otherwise parameter will be left out and assumed to be 1 during integration)
+                if stratum in adjustment_requests[parameter_request]["adjustments"]:
+                    self.parameters[parameter_adjustment_name] = \
+                        adjustment_requests[parameter_request]["adjustments"][str(stratum)]
+
+                # overwrite parameters higher up the tree by listing which ones to be overwritten
+                if "overwrite" in adjustment_requests[parameter_request] and \
+                        stratum in adjustment_requests[parameter_request]["overwrite"]:
+                    self.overwrite_parameter.append(parameter_adjustment_name)
+        return parameter_adjustment_name
 
     def apply_heterogeneous_infectiousness(self, stratification_name, strata_request, infectiousness_adjustments):
         """
