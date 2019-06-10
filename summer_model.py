@@ -470,6 +470,10 @@ class StratifiedModel(EpiModel):
         strata_names = self.prepare_and_check_stratification(
             stratification_name, strata_request, compartment_types_to_stratify, adjustment_requests, report)
 
+        # work out ageing flows (comes first so that the compartment names are still in the unstratified form)
+        if stratification_name == "age":
+            self.set_ageing_rates(strata_names)
+
         # stratify the compartments
         requested_proportions = self.tidy_starting_proportions(strata_names, requested_proportions)
         self.stratify_compartments(stratification_name, strata_names, requested_proportions)
@@ -483,10 +487,6 @@ class StratifiedModel(EpiModel):
 
         # heterogeneous infectiousness adjustments
         self.apply_heterogeneous_infectiousness(stratification_name, strata_request, infectiousness_adjustments)
-
-        # work out ageing flows (comes first so that the compartment names are still in the unstratified form)
-        if stratification_name == "age":
-            self.set_ageing_rates(strata_names, report)
 
     def prepare_and_check_stratification(self, stratification_name, strata_request, compartment_types_to_stratify,
                                          adjustment_requests, report):
@@ -719,11 +719,25 @@ class StratifiedModel(EpiModel):
                 adjustment_name = create_stratified_name("", stratification_name, stratum)
                 self.infectiousness_adjustments[adjustment_name] = infectiousness_adjustments[stratum]
 
-    def set_ageing_rates(self, strata_names, report):
+    def set_ageing_rates(self, strata_names):
         """
         set intercompartmental flows for ageing from one stratum to the next
         """
-        pass
+        for stratum_number in range(len(strata_names[: -1])):
+            start_age = strata_names[stratum_number]
+            end_age = strata_names[stratum_number + 1]
+            ageing_parameter_name = "ageing%sto%s" % (start_age, end_age)
+            ageing_rate = 1.0 / (end_age - start_age)
+            self.output_to_user("ageing rate from age group %s to %s is %s"
+                                % (start_age, end_age, round(ageing_rate, self.reporting_sigfigs)))
+            self.parameters[ageing_parameter_name] = ageing_rate
+            for compartment in self.compartment_values:
+                self.transition_flows.append(
+                    {"type": "standard_flows",
+                     "parameter": ageing_parameter_name,
+                     "from": create_stratified_name(compartment, "age", start_age),
+                     "to": create_stratified_name(compartment, "age", end_age),
+                     "implement": len(self.strata)})
 
     def add_stratified_flows(self, flow, stratification_name, strata_names, stratify_from, stratify_to,
                              adjustment_requests, report):
@@ -753,8 +767,7 @@ if __name__ == "__main__":
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
                         "infect_death": {"adjustments": {"negative": 0.5}}},
                        {"negative": 0.6}, report=False)
-    # sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
-
+    sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
     # sir_model.run_model()
     # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
     # # matplotlib.pyplot.show()
