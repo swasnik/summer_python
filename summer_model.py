@@ -27,6 +27,15 @@ def create_stratum_name(stratification_name, stratum_name):
     return "X%s_%s" % (stratification_name, str(stratum_name))
 
 
+def extract_x_positions(parameter):
+    """
+    find the positions within a string which are X and return as list reversed, including length of list
+    """
+    result = [loc for loc in range(len(parameter)) if parameter[loc] == "X"]
+    result.append(len(parameter))
+    return result
+
+
 def extract_reversed_x_positions(parameter):
     """
     find the positions within a string which are X and return as list reversed, including length of list
@@ -302,7 +311,7 @@ class EpiModel:
         if len(self.death_flows) > 0:
             self.apply_compartment_death_flows(ode_equations, compartment_values, time)
         ode_equations = self.apply_universal_death_flow(ode_equations, compartment_values, time)
-        ode_equations = self.apply_birth_rate(ode_equations, compartment_values)
+        ode_equations = self.apply_birth_rate(ode_equations, compartment_values, time)
         return ode_equations
 
     def apply_transition_flows(self, ode_equations, compartment_values, time):
@@ -380,7 +389,7 @@ class EpiModel:
                 self.tracked_quantities["total_deaths"] += net_flow
         return ode_equations
 
-    def apply_birth_rate(self, ode_equations, compartment_values):
+    def apply_birth_rate(self, ode_equations, compartment_values, time):
         """
         apply a population-wide death rate to all compartments
         """
@@ -827,7 +836,6 @@ class StratifiedModel(EpiModel):
             if flow["parameter"] not in parameters_to_adjust:
                 parameters_to_adjust.append(flow["parameter"])
         parameters_to_adjust.append("universal_death_rate")
-        print(parameters_to_adjust)
         for parameter in parameters_to_adjust:
             self.find_parameter_components(parameter)
 
@@ -872,11 +880,29 @@ class StratifiedModel(EpiModel):
         """
         pass
 
-    def apply_birth_rate_stratified(self, ode_equations, compartment_values, time):
+    def apply_birth_rate(self, ode_equations, compartment_values, time):
         """
         apply a population-wide death rate to all compartments
         """
-        pass
+        total_births = self.find_total_births(compartment_values)
+
+        # split the total births across entry compartments
+        for compartment in self.compartment_values:
+            if find_stem(compartment) == self.entry_compartment:
+
+                # calculate adjustment to original stem entry rate
+                entry_fraction = 1.0
+                x_positions = extract_x_positions(compartment)
+
+                if len(x_positions) > 1:
+                    for x_instance in range(len(x_positions) - 1):
+                        entry_fraction *= \
+                            self.parameters["entry_fractionX%s"
+                                            % compartment[x_positions[x_instance] + 1: x_positions[x_instance + 1]]]
+                compartment_births = entry_fraction * total_births
+                ode_equations = increment_compartment(
+                    ode_equations, list(self.compartment_values.keys()).index(compartment), compartment_births)
+        return ode_equations
 
 
 if __name__ == "__main__":
@@ -893,10 +919,14 @@ if __name__ == "__main__":
                         "infect_death": {"adjustments": {"negative": 0.5}}},
                        {"negative": 0.6}, report=False)
     # sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
+
     sir_model.run_model()
 
-    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
-    # # matplotlib.pyplot.show()
+    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 1])
+
+    print(sir_model.outputs)
+
+    matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
