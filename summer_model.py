@@ -90,10 +90,10 @@ class EpiModel:
                  default_starting_compartment="", equilibrium_stopping_tolerance=None):
 
         # attributes with specific format that are independent of user inputs
-        self.compartment_values, self.tracked_quantities, self.output_connections, self.time_variants = \
-            [{} for _ in range(4)]
+        self.tracked_quantities, self.output_connections, self.time_variants = \
+            [{} for _ in range(3)]
         self.derived_outputs = {"times": []}
-        self.compartment_values_shadow, self.compartment_names, self.transition_flows, self.death_flows = \
+        self.compartment_values, self.compartment_names, self.transition_flows, self.death_flows = \
             [[] for _ in range(4)]
 
         # features that should not be changed
@@ -179,16 +179,12 @@ class EpiModel:
 
         # temporary code with view to changing over to the new data structure approach
         self.compartment_names = copy.copy(self.compartment_types)
-        self.compartment_values_shadow = [0.0] * len(self.compartment_names)
+        self.compartment_values = [0.0] * len(self.compartment_names)
 
         for compartment in self.compartment_types:
             if compartment in self.initial_conditions:
-                self.compartment_values[compartment] = self.initial_conditions[compartment]
-                self.compartment_values_shadow[self.compartment_names.index(compartment)] = \
+                self.compartment_values[self.compartment_names.index(compartment)] = \
                     self.initial_conditions[compartment]
-            else:
-                self.output_to_user("no starting value requested for %s so set to zero" % compartment)
-                self.compartment_values[compartment] = 0
 
         # sum to a total value if requested
         if initial_conditions_to_total:
@@ -199,14 +195,13 @@ class EpiModel:
         make initial conditions sum to a certain value
         """
         compartment = self.find_remainder_compartment()
-        if sum(self.compartment_values_shadow) > self.starting_population:
+        if sum(self.compartment_values) > self.starting_population:
             raise ValueError("total of requested compartment values is greater than the requested starting population")
-        remaining_population = self.starting_population - sum(self.compartment_values_shadow)
+        remaining_population = self.starting_population - sum(self.compartment_values)
         self.output_to_user("requested that total population sum to %s" % self.starting_population)
         self.output_to_user("remaining population of %s allocated to %s compartment"
                             % (remaining_population, compartment))
-        self.compartment_values[compartment] = remaining_population
-        self.compartment_values_shadow[self.compartment_names.index(compartment)] = remaining_population
+        self.compartment_values[self.compartment_names.index(compartment)] = remaining_population
 
     def find_remainder_compartment(self):
         """
@@ -296,9 +291,9 @@ class EpiModel:
 
         def make_model_function(compartment_values, time):
             self.update_tracked_quantities(compartment_values)
-            return self.apply_all_flow_types_to_odes([0] * len(self.compartment_values), compartment_values, time)
+            return self.apply_all_flow_types_to_odes([0.0] * len(self.compartment_names), compartment_values, time)
 
-        self.outputs = odeint(make_model_function, list(self.compartment_values.values()), self.times)
+        self.outputs = odeint(make_model_function, self.compartment_values, self.times)
         self.output_to_user("integration complete")
 
     def prepare_stratified_parameter_calculations(self):
@@ -338,11 +333,11 @@ class EpiModel:
                 infectious_population = self.find_infectious_multiplier(flow["type"])
 
                 # calculate the flow and apply to the odes
-                from_compartment = list(self.compartment_values.keys()).index(flow["from"])
+                from_compartment = list(self.compartment_names).index(flow["from"])
                 net_flow = adjusted_parameter * compartment_values[from_compartment] * infectious_population
                 ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
                 ode_equations = increment_compartment(
-                    ode_equations, list(self.compartment_values.keys()).index(flow["to"]), net_flow)
+                    ode_equations, list(self.compartment_names).index(flow["to"]), net_flow)
 
                 # track any quantities dependent on flow rates
                 self.track_derived_outputs(flow, net_flow)
@@ -377,7 +372,7 @@ class EpiModel:
         for flow in self.death_flows:
             if flow["implement"] == len(self.strata):
                 adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
-                from_compartment = list(self.compartment_values.keys()).index(flow["from"])
+                from_compartment = self.compartment_names.index(flow["from"])
                 net_flow = adjusted_parameter * compartment_values[from_compartment]
                 ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
                 if "total_deaths" in self.tracked_quantities:
@@ -388,9 +383,9 @@ class EpiModel:
         """
         apply the population-wide death rate to all compartments
         """
-        for compartment in self.compartment_values:
+        for compartment in self.compartment_names:
             adjusted_parameter = self.get_parameter_value("universal_death_rate", time)
-            from_compartment = list(self.compartment_values.keys()).index(compartment)
+            from_compartment = self.compartment_names.index(compartment)
             net_flow = adjusted_parameter * compartment_values[from_compartment]
             ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
 
@@ -404,7 +399,7 @@ class EpiModel:
         apply a population-wide death rate to all compartments
         """
         return increment_compartment(
-            ode_equations, list(self.compartment_values.keys()).index(self.entry_compartment),
+            ode_equations, self.compartment_names.index(self.entry_compartment),
             self.find_total_births(compartment_values))
 
     def find_total_births(self, compartment_values):
@@ -445,10 +440,10 @@ class EpiModel:
         """
         calculations to find the effective infectious population
         """
-        for compartment in self.compartment_values:
+        for compartment in self.compartment_names:
             if find_stem(compartment) == self.infectious_compartment:
                 self.tracked_quantities["infectious_population"] += \
-                    compartment_values[list(self.compartment_values.keys()).index(self.infectious_compartment)]
+                    compartment_values[self.compartment_names.index(self.infectious_compartment)]
 
     def get_parameter_value(self, parameter, time):
         """
@@ -462,7 +457,8 @@ class StratifiedModel(EpiModel):
         """
         add a compartment by specifying its name and value to take
         """
-        self.compartment_values[new_compartment_name] = new_compartment_value
+        self.compartment_names.append(new_compartment_name)
+        self.compartment_values.append(new_compartment_value)
         self.output_to_user("adding compartment: %s" % new_compartment_name)
 
     def remove_compartment(self, compartment):
@@ -470,7 +466,8 @@ class StratifiedModel(EpiModel):
         remove a compartment by taking the element out of the compartment values attribute
         """
         self.removed_compartments.append(compartment)
-        del self.compartment_values[compartment]
+        del self.compartment_values[self.compartment_names.index(compartment)]
+        del self.compartment_names[self.compartment_names.index(compartment)]
         self.output_to_user("removing compartment: %s" % compartment)
 
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
@@ -635,13 +632,14 @@ class StratifiedModel(EpiModel):
         """
 
         # find the existing compartments that need stratification
-        for compartment in copy.copy(self.compartment_values):
+        for compartment in copy.copy(self.compartment_names):
             if find_stem(compartment) in self.compartment_types_to_stratify:
 
                 # add and remove compartments
                 for stratum in strata_names:
                     self.add_compartment(create_stratified_name(compartment, stratification_name, stratum),
-                                         self.compartment_values[compartment] * requested_proportions[stratum])
+                                         self.compartment_values[self.compartment_names.index(compartment)] *
+                                         requested_proportions[stratum])
                 self.remove_compartment(compartment)
 
     def stratify_transition_flows(self, stratification_name, strata_names, adjustment_requests):
@@ -760,7 +758,7 @@ class StratifiedModel(EpiModel):
             self.output_to_user("ageing rate from age group %s to %s is %s"
                                 % (start_age, end_age, round(ageing_rate, self.reporting_sigfigs)))
             self.parameters[ageing_parameter_name] = ageing_rate
-            for compartment in self.compartment_values:
+            for compartment in self.compartment_names:
                 self.transition_flows.append(
                     {"type": "standard_flows",
                      "parameter": ageing_parameter_name,
@@ -890,7 +888,7 @@ class StratifiedModel(EpiModel):
         """
 
         # loop through all compartments and find the ones representing active infectious disease
-        for compartment in self.compartment_values:
+        for compartment in self.compartment_names:
             if find_stem(compartment) == self.infectious_compartment:
 
                 # assume homogeneous infectiousness until requested otherwise
@@ -899,7 +897,7 @@ class StratifiedModel(EpiModel):
                 # haven't yet done heterogeneous infectiousness
 
                 self.tracked_quantities["infectious_population"] += \
-                    compartment_values[list(self.compartment_values.keys()).index(compartment)] * infectiousness_modifier
+                    compartment_values[self.compartment_names.index(compartment)] * infectiousness_modifier
 
     def apply_birth_rate(self, ode_equations, compartment_values, time):
         """
@@ -908,7 +906,7 @@ class StratifiedModel(EpiModel):
         total_births = self.find_total_births(compartment_values)
 
         # split the total births across entry compartments
-        for compartment in self.compartment_values:
+        for compartment in self.compartment_names:
             if find_stem(compartment) == self.entry_compartment:
 
                 # calculate adjustment to original stem entry rate
@@ -922,7 +920,7 @@ class StratifiedModel(EpiModel):
                                             % compartment[x_positions[x_instance] + 1: x_positions[x_instance + 1]]]
                 compartment_births = entry_fraction * total_births
                 ode_equations = increment_compartment(
-                    ode_equations, list(self.compartment_values.keys()).index(compartment), compartment_births)
+                    ode_equations, self.compartment_names.index(compartment), compartment_births)
         return ode_equations
 
 
@@ -943,11 +941,9 @@ if __name__ == "__main__":
 
     sir_model.run_model()
 
-    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
+    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
 
-    # print(sir_model.outputs)
-
-    # matplotlib.pyplot.show()
+    matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
