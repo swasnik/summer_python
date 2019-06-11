@@ -91,14 +91,14 @@ class EpiModel:
 
         # set flow attributes as pandas dataframes with set column names
         self.transition_flows = pandas.DataFrame(columns=["type", "parameter", "origin", "to", "implement"])
-        self.death_flows_df = pandas.DataFrame(columns=["type", "parameter", "origin", "implement"])
+        self.death_flows = pandas.DataFrame(columns=["type", "parameter", "origin", "implement"])
 
         # attributes with specific format that are independent of user inputs
         self.tracked_quantities, self.output_connections, self.time_variants = \
             [{} for _ in range(3)]
         self.derived_outputs = {"times": []}
-        self.compartment_values, self.compartment_names, self.death_flows = \
-            [[] for _ in range(3)]
+        self.compartment_values, self.compartment_names = \
+            [[] for _ in range(2)]
 
         # features that should not be changed
         self.available_birth_approaches = ["add_crude_birth_rate", "replace_deaths", "no_births"]
@@ -277,8 +277,7 @@ class EpiModel:
         similarly for compartment-specific death flows
         """
         flow["implement"] = 0
-        self.death_flows.append(flow)
-        self.death_flows_df = self.death_flows_df.append(flow, ignore_index=True)
+        self.death_flows = self.death_flows.append(flow, ignore_index=True)
 
     """
     methods for model running
@@ -315,7 +314,7 @@ class EpiModel:
         apply all flow types to a vector of zeros (deaths must come before births in case births replace deaths)
         """
         ode_equations = self.apply_transition_flows(ode_equations, compartment_values, time)
-        if len(self.death_flows) > 0:
+        if self.death_flows.shape[0] > 0:
             self.apply_compartment_death_flows(ode_equations, compartment_values, time)
         ode_equations = self.apply_universal_death_flow(ode_equations, compartment_values, time)
         ode_equations = self.apply_birth_rate(ode_equations, compartment_values, time)
@@ -371,10 +370,10 @@ class EpiModel:
         """
         equivalent method to for transition flows above, but for deaths
         """
-        for flow in self.death_flows:
-            if flow["implement"] == len(self.strata):
-                adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
-                from_compartment = self.compartment_names.index(flow["origin"])
+        for f in range(self.death_flows.shape[0]):
+            if self.death_flows.implement[f] == len(self.strata):
+                adjusted_parameter = self.get_parameter_value(self.death_flows.parameter[f], time)
+                from_compartment = self.compartment_names.index(self.death_flows.origin[f])
                 net_flow = adjusted_parameter * compartment_values[from_compartment]
                 ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
                 if "total_deaths" in self.tracked_quantities:
@@ -509,7 +508,7 @@ class StratifiedModel(EpiModel):
         # stratify the flows
         self.stratify_transition_flows(stratification_name, strata_names, adjustment_requests)
         self.stratify_entry_flows(stratification_name, strata_names, requested_proportions)
-        if len(self.death_flows) > 0:
+        if self.death_flows.shape[0] > 0:
             self.stratify_death_flows(stratification_name, strata_names, adjustment_requests)
         self.stratify_universal_death_rate(stratification_name, strata_names, adjustment_requests)
 
@@ -686,18 +685,19 @@ class StratifiedModel(EpiModel):
         """
         add compartment-specific death flows to death data frame
         """
-        for flow in range(len(self.death_flows)):
-            if self.death_flows[flow]["implement"] == len(self.strata) - 1:
+        for flow in range(self.death_flows.shape[0]):
+            if self.death_flows.implement[flow] == len(self.strata) - 1:
                 for stratum in strata_names:
                     parameter_name = self.add_adjusted_parameter(
-                        self.death_flows[flow]["parameter"], stratification_name, stratum, adjustment_requests)
+                        self.death_flows.parameter[flow], stratification_name, stratum, adjustment_requests)
                     if not parameter_name:
-                        parameter_name = self.death_flows[flow]["parameter"]
-                    self.death_flows.append(
-                        {"type": self.death_flows[flow]["type"],
+                        parameter_name = self.death_flows.parameter[flow]
+                    self.death_flows = self.death_flows.append(
+                        {"type": self.death_flows.type[flow],
                          "parameter": parameter_name,
-                         "origin": create_stratified_name(self.death_flows[flow]["origin"], stratification_name, stratum),
-                         "implement": len(self.strata)})
+                         "origin": create_stratified_name(self.death_flows.origin[flow], stratification_name, stratum),
+                         "implement": len(self.strata)},
+                        ignore_index=True)
 
     def stratify_universal_death_rate(self, stratification_name, strata_names, adjustment_requests):
         """
@@ -761,7 +761,7 @@ class StratifiedModel(EpiModel):
                                 % (start_age, end_age, round(ageing_rate, self.reporting_sigfigs)))
             self.parameters[ageing_parameter_name] = ageing_rate
             for compartment in self.compartment_names:
-                self.transition_flows.append(
+                self.transition_flows = self.transition_flows.append(
                     {"type": "standard_flows",
                      "parameter": ageing_parameter_name,
                      "origin": create_stratified_name(compartment, "age", start_age),
@@ -845,9 +845,10 @@ class StratifiedModel(EpiModel):
             if self.transition_flows.implement[f] == len(self.strata) and \
                     self.transition_flows.parameter[f] not in parameters_to_adjust:
                 parameters_to_adjust.append(self.transition_flows.parameter[f])
-        for flow in [f for f in self.death_flows if f["implement"] == len(self.strata)]:
-            if flow["parameter"] not in parameters_to_adjust:
-                parameters_to_adjust.append(flow["parameter"])
+        for f in range(self.death_flows.shape[0]):
+            if self.death_flows.implement[f] == len(self.strata) and \
+                    self.death_flows.parameter[f] not in parameters_to_adjust:
+                parameters_to_adjust.append(self.death_flows.parameter[f])
         parameters_to_adjust.append("universal_death_rate")
         for parameter in parameters_to_adjust:
             self.find_parameter_components(parameter)
