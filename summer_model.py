@@ -199,20 +199,21 @@ class EpiModel:
         make initial conditions sum to a certain value
         """
         compartment = self.find_remainder_compartment()
-        if sum(self.compartment_values.values()) > self.starting_population:
+        if sum(self.compartment_values_shadow) > self.starting_population:
             raise ValueError("total of requested compartment values is greater than the requested starting population")
-        remaining_population = self.starting_population - sum(self.compartment_values.values())
+        remaining_population = self.starting_population - sum(self.compartment_values_shadow)
         self.output_to_user("requested that total population sum to %s" % self.starting_population)
         self.output_to_user("remaining population of %s allocated to %s compartment"
                             % (remaining_population, compartment))
         self.compartment_values[compartment] = remaining_population
+        self.compartment_values_shadow[self.compartment_names.index(compartment)] = remaining_population
 
     def find_remainder_compartment(self):
         """
         find the compartment to put the remaining population that hasn't been assigned yet when summing to total
         """
         if len(self.default_starting_compartment) > 0 and \
-                self.default_starting_compartment not in self.compartment_values:
+                self.default_starting_compartment not in self.compartment_types:
             raise ValueError("starting compartment to populate with initial values not found in available compartments")
         elif len(self.default_starting_compartment) > 0:
             return self.default_starting_compartment
@@ -253,20 +254,20 @@ class EpiModel:
 
         # universal death rate
         if "universal_death_rate" not in self.parameters:
-            self.parameters["universal_death_rate"] = 0
+            self.parameters["universal_death_rate"] = 0.0
 
         # birth approach-specific parameters
         if self.birth_approach == "add_crude_birth_rate" and "crude_birth_rate" not in self.parameters:
-            self.parameters["crude_birth_rate"] = 0
+            self.parameters["crude_birth_rate"] = 0.0
         elif self.birth_approach == "replace_deaths":
-            self.tracked_quantities["total_deaths"] = 0
+            self.tracked_quantities["total_deaths"] = 0.0
 
         # for each derived output to be recorded, initialise a tracked quantities key to zero
         for output in self.output_connections:
-            self.tracked_quantities[output] = 0
+            self.tracked_quantities[output] = 0.0
 
         # parameters essential for stratification
-        self.parameters["entry_fractions"] = 1
+        self.parameters["entry_fractions"] = 1.0
 
     def add_transition_flow(self, flow):
         """
@@ -942,15 +943,14 @@ if __name__ == "__main__":
 
     sir_model.run_model()
 
-    print(sir_model.compartment_values)
-
-    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
+    # outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
 
     # print(sir_model.outputs)
 
-    matplotlib.pyplot.show()
+    # matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
+    df = pandas.DataFrame(columns=["X", "Y", "Z"])
 
 
