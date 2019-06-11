@@ -3,6 +3,7 @@ import numpy
 from scipy.integrate import odeint
 import matplotlib.pyplot
 import copy
+import pandas
 
 
 def find_stem(stratified_string):
@@ -92,7 +93,8 @@ class EpiModel:
         self.compartment_values, self.tracked_quantities, self.output_connections, self.time_variants = \
             [{} for _ in range(4)]
         self.derived_outputs = {"times": []}
-        self.transition_flows, self.death_flows = [[] for _ in range(2)]
+        self.compartment_values_shadow, self.compartment_names, self.transition_flows, self.death_flows = \
+            [[] for _ in range(4)]
 
         # features that should not be changed
         self.available_birth_approaches = ["add_crude_birth_rate", "replace_deaths", "no_births"]
@@ -174,9 +176,16 @@ class EpiModel:
         """
 
         # set starting values of unstratified compartments to requested value, or zero if no value requested
+
+        # temporary code with view to changing over to the new data structure approach
+        self.compartment_names = copy.copy(self.compartment_types)
+        self.compartment_values_shadow = [0.0] * len(self.compartment_names)
+
         for compartment in self.compartment_types:
             if compartment in self.initial_conditions:
                 self.compartment_values[compartment] = self.initial_conditions[compartment]
+                self.compartment_values_shadow[self.compartment_names.index(compartment)] = \
+                    self.initial_conditions[compartment]
             else:
                 self.output_to_user("no starting value requested for %s so set to zero" % compartment)
                 self.compartment_values[compartment] = 0
