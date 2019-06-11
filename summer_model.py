@@ -89,12 +89,16 @@ class EpiModel:
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
                  default_starting_compartment="", equilibrium_stopping_tolerance=None):
 
+        # set flow attributes as pandas dataframes with set column names
+        self.transition_flows = pandas.DataFrame(columns=["type", "parameter", "origin", "to", "implement"])
+        self.death_flows_df = pandas.DataFrame(columns=["type", "parameter", "origin", "implement"])
+
         # attributes with specific format that are independent of user inputs
         self.tracked_quantities, self.output_connections, self.time_variants = \
             [{} for _ in range(3)]
         self.derived_outputs = {"times": []}
-        self.compartment_values, self.compartment_names, self.transition_flows, self.death_flows = \
-            [[] for _ in range(4)]
+        self.compartment_values, self.compartment_names, self.death_flows = \
+            [[] for _ in range(3)]
 
         # features that should not be changed
         self.available_birth_approaches = ["add_crude_birth_rate", "replace_deaths", "no_births"]
@@ -224,7 +228,7 @@ class EpiModel:
         for flow in requested_flows:
             if flow["parameter"] not in self.parameters:
                 raise ValueError("flow parameter not found in parameter list")
-            if flow["from"] not in self.compartment_types:
+            if flow["origin"] not in self.compartment_types:
                 raise ValueError("from compartment name not found in compartment types")
             if "to" in flow and flow["to"] not in self.compartment_types:
                 raise ValueError("to compartment name not found in compartment types")
@@ -238,9 +242,6 @@ class EpiModel:
                 self.tracked_quantities["infectious_population"] = 0.0
             if flow["type"] == "infection_frequency":
                 self.tracked_quantities["total_population"] = 0.0
-
-        # retain a copy of the original flows for the purposes of graphing, etc.
-        self.unstratified_flows = self.transition_flows
 
     def add_default_quantities(self):
         """
@@ -269,7 +270,7 @@ class EpiModel:
         simply add a flow to the data frame storing the flows
         """
         flow["implement"] = 0
-        self.transition_flows.append(flow)
+        self.transition_flows = self.transition_flows.append(flow, ignore_index=True)
 
     def add_death_flow(self, flow):
         """
@@ -277,6 +278,7 @@ class EpiModel:
         """
         flow["implement"] = 0
         self.death_flows.append(flow)
+        self.death_flows_df = self.death_flows_df.append(flow, ignore_index=True)
 
     """
     methods for model running
@@ -325,22 +327,22 @@ class EpiModel:
         """
 
         # find adjusted parameter value
-        for flow in self.transition_flows:
-            if flow["implement"] == len(self.strata):
-                adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
+        for f in [n_flow for n_flow in range(self.transition_flows.shape[0]) if
+                  self.transition_flows.implement[n_flow] == len(self.strata)]:
+            adjusted_parameter = self.get_parameter_value(self.transition_flows.parameter[f], time)
 
-                # find from compartment and "infectious population", which is 1 for standard flows
-                infectious_population = self.find_infectious_multiplier(flow["type"])
+            # find from compartment and "infectious population", which is 1 for standard flows
+            infectious_population = self.find_infectious_multiplier(self.transition_flows.type[f])
 
-                # calculate the flow and apply to the odes
-                from_compartment = list(self.compartment_names).index(flow["from"])
-                net_flow = adjusted_parameter * compartment_values[from_compartment] * infectious_population
-                ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
-                ode_equations = increment_compartment(
-                    ode_equations, list(self.compartment_names).index(flow["to"]), net_flow)
+            # calculate the flow and apply to the odes
+            from_compartment = list(self.compartment_names).index(self.transition_flows.origin[f])
+            net_flow = adjusted_parameter * compartment_values[from_compartment] * infectious_population
+            ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
+            ode_equations = increment_compartment(
+                ode_equations, list(self.compartment_names).index(self.transition_flows.to[f]), net_flow)
 
-                # track any quantities dependent on flow rates
-                self.track_derived_outputs(flow, net_flow)
+            # track any quantities dependent on flow rates
+            self.track_derived_outputs(f, net_flow)
 
         # add another element to the derived outputs vector
         self.extend_derived_outputs(time)
@@ -348,13 +350,13 @@ class EpiModel:
         # return flow rates
         return ode_equations
 
-    def track_derived_outputs(self, flow, net_flow):
+    def track_derived_outputs(self, n_flow, net_flow):
         """
         calculate derived quantities to be tracked
         """
         for output_type in self.output_connections:
-            if self.output_connections[output_type]["from"] in flow["from"] \
-                    and self.output_connections[output_type]["to"] in flow["to"]:
+            if self.output_connections[output_type]["origin"] in self.transition_flows.origin[n_flow] \
+                    and self.output_connections[output_type]["to"] in self.transition_flows.to[n_flow]:
                 self.tracked_quantities[output_type] += net_flow
 
     def extend_derived_outputs(self, time):
@@ -372,7 +374,7 @@ class EpiModel:
         for flow in self.death_flows:
             if flow["implement"] == len(self.strata):
                 adjusted_parameter = self.get_parameter_value(flow["parameter"], time)
-                from_compartment = self.compartment_names.index(flow["from"])
+                from_compartment = self.compartment_names.index(flow["origin"])
                 net_flow = adjusted_parameter * compartment_values[from_compartment]
                 ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
                 if "total_deaths" in self.tracked_quantities:
@@ -646,13 +648,13 @@ class StratifiedModel(EpiModel):
         """
         stratify flows depending on whether inflow, outflow or both need replication
         """
-        for flow in range(len(self.transition_flows)):
-            if self.transition_flows[flow]["implement"] == len(self.strata) - 1:
-                self.add_stratified_flows(
-                    flow, stratification_name, strata_names,
-                    find_stem(self.transition_flows[flow]["from"]) in self.compartment_types_to_stratify,
-                    find_stem(self.transition_flows[flow]["to"]) in self.compartment_types_to_stratify,
-                    adjustment_requests)
+        for flow in [n_flow for n_flow in range(self.transition_flows.shape[0]) if
+                     self.transition_flows.implement[n_flow] == len(self.strata) - 1]:
+            self.add_stratified_flows(
+                flow, stratification_name, strata_names,
+                find_stem(self.transition_flows.origin[flow]) in self.compartment_types_to_stratify,
+                find_stem(self.transition_flows.to[flow]) in self.compartment_types_to_stratify,
+                adjustment_requests)
         self.output_to_user("stratified transition flows matrix:\n%s" % self.transition_flows)
 
     def stratify_entry_flows(self, stratification_name, strata_names, requested_proportions):
@@ -694,7 +696,7 @@ class StratifiedModel(EpiModel):
                     self.death_flows.append(
                         {"type": self.death_flows[flow]["type"],
                          "parameter": parameter_name,
-                         "from": create_stratified_name(self.death_flows[flow]["from"], stratification_name, stratum),
+                         "origin": create_stratified_name(self.death_flows[flow]["origin"], stratification_name, stratum),
                          "implement": len(self.strata)})
 
     def stratify_universal_death_rate(self, stratification_name, strata_names, adjustment_requests):
@@ -762,9 +764,10 @@ class StratifiedModel(EpiModel):
                 self.transition_flows.append(
                     {"type": "standard_flows",
                      "parameter": ageing_parameter_name,
-                     "from": create_stratified_name(compartment, "age", start_age),
+                     "origin": create_stratified_name(compartment, "age", start_age),
                      "to": create_stratified_name(compartment, "age", end_age),
-                     "implement": len(self.strata)})
+                     "implement": len(self.strata)},
+                    ignore_index=True)
 
     def add_stratified_flows(self, flow, stratification_name, strata_names, stratify_from, stratify_to,
                              adjustment_requests):
@@ -774,14 +777,14 @@ class StratifiedModel(EpiModel):
         if stratify_from or stratify_to:
             self.output_to_user(
                 "for flow from %s to %s in stratification %s"
-                % (self.transition_flows[flow]["from"], self.transition_flows[flow]["to"], stratification_name))
+                % (self.transition_flows.origin[flow], self.transition_flows.to[flow], stratification_name))
 
             # loop over each stratum in the requested stratification structure
             for stratum in strata_names:
 
                 # find parameter name
                 parameter_name = self.add_adjusted_parameter(
-                    self.transition_flows[flow]["parameter"], stratification_name, stratum, adjustment_requests)
+                    self.transition_flows.parameter[flow], stratification_name, stratum, adjustment_requests)
                 if not parameter_name:
                     parameter_name = self.sort_absent_parameter_request(
                         stratification_name, strata_names, stratum, stratify_from, stratify_to, flow)
@@ -789,22 +792,23 @@ class StratifiedModel(EpiModel):
                 # determine whether to and/or from compartments are stratified
                 if stratify_from:
                     from_compartment = create_stratified_name(
-                        self.transition_flows[flow]["from"], stratification_name, stratum)
+                        self.transition_flows.origin[flow], stratification_name, stratum)
                 else:
-                    from_compartment = self.transition_flows[flow]["from"]
+                    from_compartment = self.transition_flows.origin[flow]
                 if stratify_to:
                     to_compartment = create_stratified_name(
-                        self.transition_flows[flow]["to"], stratification_name, stratum)
+                        self.transition_flows.to[flow], stratification_name, stratum)
                 else:
-                    to_compartment = self.transition_flows[flow]["to"]
+                    to_compartment = self.transition_flows.to[flow]
 
                 # add the new flow
-                self.transition_flows.append(
-                    {"type": self.transition_flows[flow]["type"],
+                self.transition_flows = self.transition_flows.append(
+                    {"type": self.transition_flows.type[flow],
                      "parameter": parameter_name,
-                     "from": from_compartment,
+                     "origin": from_compartment,
                      "to": to_compartment,
-                     "implement": len(self.strata)})
+                     "implement": len(self.strata)},
+                    ignore_index=True)
 
     def sort_absent_parameter_request(self, stratification_name, strata_names, stratum, stratify_from, stratify_to,
                                       flow):
@@ -815,14 +819,14 @@ class StratifiedModel(EpiModel):
         # default behaviour if not specified is to split the parameter into equal parts if to compartment is split
         if not stratify_from and stratify_to:
             self.output_to_user("\tsplitting existing parameter value %s into %s equal parts"
-                                % (self.transition_flows[flow]["parameter"], len(strata_names)))
+                                % (self.transition_flows.parameter[flow], len(strata_names)))
             self.parameters[
-                create_stratified_name(self.transition_flows[flow]["parameter"], stratification_name, stratum)] = \
+                create_stratified_name(self.transition_flows.parameter[flow], stratification_name, stratum)] = \
                 1.0 / len(strata_names)
 
         # otherwise if no request, retain the existing parameter
         else:
-            parameter_name = self.transition_flows[flow]["parameter"]
+            parameter_name = self.transition_flows.parameter[flow]
             self.output_to_user("\tretaining existing parameter value %s" % parameter_name)
         return parameter_name
 
@@ -837,9 +841,10 @@ class StratifiedModel(EpiModel):
 
         # create list of all the parameters that we need to find the list of adjustments for
         parameters_to_adjust = []
-        for flow in [f for f in self.transition_flows if f["implement"] == len(self.strata)]:
-            if flow["parameter"] not in parameters_to_adjust:
-                parameters_to_adjust.append(flow["parameter"])
+        for f in range(self.transition_flows.shape[0]):
+            if self.transition_flows.implement[f] == len(self.strata) and \
+                    self.transition_flows.parameter[f] not in parameters_to_adjust:
+                parameters_to_adjust.append(self.transition_flows.parameter[f])
         for flow in [f for f in self.death_flows if f["implement"] == len(self.strata)]:
             if flow["parameter"] not in parameters_to_adjust:
                 parameters_to_adjust.append(flow["parameter"])
@@ -934,9 +939,9 @@ if __name__ == "__main__":
                          ["susceptible", "infectious", "recovered"],
                          {"infectious": 0.001},
                          {"beta": 400, "recovery": 365 / 13, "infect_death": 1},
-                         [{"type": "standard_flows", "parameter": "recovery", "from": "infectious", "to": "recovered"},
-                          {"type": "infection_density", "parameter": "beta", "from": "susceptible", "to": "infectious"},
-                          {"type": "compartment_death", "parameter": "infect_death", "from": "infectious"}],
+                         [{"type": "standard_flows", "parameter": "recovery", "origin": "infectious", "to": "recovered"},
+                          {"type": "infection_density", "parameter": "beta", "origin": "susceptible", "to": "infectious"},
+                          {"type": "compartment_death", "parameter": "infect_death", "origin": "infectious"}],
                          report=False)
     sir_model.stratify("hiv", ["negative", "positive"], [],
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
@@ -952,6 +957,5 @@ if __name__ == "__main__":
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
-    df = pandas.DataFrame(columns=["X", "Y", "Z"])
 
 
