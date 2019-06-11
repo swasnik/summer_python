@@ -888,16 +888,21 @@ class StratifiedModel(EpiModel):
         """
 
         # loop through all compartments and find the ones representing active infectious disease
-        for compartment in self.compartment_names:
+        for compartment in self.compartment_values:
             if find_stem(compartment) == self.infectious_compartment:
 
                 # assume homogeneous infectiousness until requested otherwise
                 infectiousness_modifier = 1.0
 
                 # haven't yet done heterogeneous infectiousness
+                if self.heterogeneous_infectiousness:
+                    for adjustment in self.infectiousness_adjustments:
+                        if adjustment in compartment:
+                            infectiousness_modifier = self.infectiousness_adjustments[adjustment]
 
                 self.tracked_quantities["infectious_population"] += \
-                    compartment_values[self.compartment_names.index(compartment)] * infectiousness_modifier
+                    compartment_values[list(self.compartment_values.keys()).index(compartment)] * \
+                    infectiousness_modifier
 
     def apply_birth_rate(self, ode_equations, compartment_values, time):
         """
