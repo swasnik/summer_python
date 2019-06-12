@@ -1,6 +1,6 @@
 
 import numpy
-from scipy.integrate import odeint
+from scipy.integrate import odeint, solve_ivp
 import matplotlib.pyplot
 import copy
 import pandas
@@ -87,7 +87,7 @@ class EpiModel:
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
-                 default_starting_compartment="", equilibrium_stopping_tolerance=None):
+                 default_starting_compartment="", equilibrium_stopping_tolerance=None, integration_type="odeint"):
 
         # set flow attributes as pandas dataframes with set column names
         self.transition_flows = pandas.DataFrame(columns=["type", "parameter", "origin", "to", "implement"])
@@ -114,13 +114,14 @@ class EpiModel:
             self.initial_conditions_to_total, self.infectious_compartment, self.birth_approach, self.report, \
             self.reporting_sigfigs, self.entry_compartment, self.starting_population, \
             self.default_starting_compartment, self.default_starting_population, self.equilibrium_stopping_tolerance, \
-            self.unstratified_flows, self.outputs = [None for _ in range(17)]
+            self.unstratified_flows, self.outputs, self.integration_type = [None for _ in range(18)]
 
         # convert input arguments to model attributes
         for attribute in ["times", "compartment_types", "initial_conditions", "parameters",
                           "initial_conditions_to_total", "infectious_compartment", "birth_approach", "report",
                           "reporting_sigfigs", "entry_compartment", "starting_population",
-                          "default_starting_compartment", "infectious_compartment", "equilibrium_stopping_tolerance"]:
+                          "default_starting_compartment", "infectious_compartment", "equilibrium_stopping_tolerance",
+                          "integration_type"]:
             setattr(self, attribute, eval(attribute))
 
         # set initial conditions and implement flows
@@ -290,11 +291,27 @@ class EpiModel:
         self.output_to_user("now integrating")
         self.prepare_stratified_parameter_calculations()
 
-        def make_model_function(compartment_values, time):
-            self.update_tracked_quantities(compartment_values)
-            return self.apply_all_flow_types_to_odes([0.0] * len(self.compartment_names), compartment_values, time)
+        if self.integration_type == "odeint":
+            def make_model_function(compartment_values, time):
+                self.update_tracked_quantities(compartment_values)
+                return self.apply_all_flow_types_to_odes([0.0] * len(self.compartment_names), compartment_values, time)
+            self.outputs = odeint(make_model_function, self.compartment_values, self.times)
 
-        self.outputs = odeint(make_model_function, self.compartment_values, self.times)
+        elif self.integration_type == "solve_ivp":
+
+            # solve_ivp requires arguments to model function in the reverse order
+            def make_model_function(time, compartment_values):
+                self.update_tracked_quantities(compartment_values)
+                return self.apply_all_flow_types_to_odes([0.0] * len(self.compartment_names), compartment_values, time)
+
+            # solve_ivp returns more detailed structure, with (transposed) outputs (called "y") being just one component
+            self.outputs = solve_ivp(
+                make_model_function,
+                (self.times[0], self.times[-1]), self.compartment_values, t_eval=self.times)["y"].transpose()
+
+        else:
+            raise ValueError("integration approach requested not available")
+
         self.output_to_user("integration complete")
 
     def prepare_stratified_parameter_calculations(self):
@@ -474,11 +491,15 @@ class StratifiedModel(EpiModel):
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
-                 default_starting_compartment="", equilibrium_stopping_tolerance=None):
+                 default_starting_compartment="", equilibrium_stopping_tolerance=None, integration_type="odeint"):
         EpiModel.__init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
-                 initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
-                 report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
-                 default_starting_compartment="", equilibrium_stopping_tolerance=None)
+                          initial_conditions_to_total=initial_conditions_to_total,
+                          infectious_compartment=infectious_compartment, birth_approach=birth_approach,
+                          report=report, reporting_sigfigs=reporting_sigfigs, entry_compartment=entry_compartment,
+                          starting_population=starting_population,
+                          default_starting_compartment=default_starting_compartment,
+                          equilibrium_stopping_tolerance=equilibrium_stopping_tolerance,
+                          integration_type=integration_type)
 
         self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify = \
             [[] for _ in range(4)]
@@ -943,7 +964,7 @@ if __name__ == "__main__":
                          [{"type": "standard_flows", "parameter": "recovery", "origin": "infectious", "to": "recovered"},
                           {"type": "infection_density", "parameter": "beta", "origin": "susceptible", "to": "infectious"},
                           {"type": "compartment_death", "parameter": "infect_death", "origin": "infectious"}],
-                         report=False)
+                         report=False, integration_type="solve_ivp")
     sir_model.stratify("hiv", ["negative", "positive"], [],
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
                         "infect_death": {"adjustments": {"negative": 0.5}}},
@@ -954,9 +975,18 @@ if __name__ == "__main__":
 
     outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
 
+    # print(len(sir_model.times))
+    # print(sir_model.outputs[1])
+
+    # print(sir_model.outputs)
+
     matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
+
+
+
+
 
 
