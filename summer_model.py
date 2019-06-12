@@ -446,7 +446,7 @@ class EpiModel:
         update quantities that emerge during model running (not pre-defined functions of time)
         """
         for quantity in self.tracked_quantities:
-            self.tracked_quantities[quantity] = 0
+            self.tracked_quantities[quantity] = 0.0
             if quantity == "infectious_population":
                 self.find_infectious_population(compartment_values)
             elif quantity == "total_population":
@@ -456,14 +456,13 @@ class EpiModel:
         """
         calculations to find the effective infectious population
         """
-        for compartment in self.compartment_names:
-            if find_stem(compartment) == self.infectious_compartment:
-                self.tracked_quantities["infectious_population"] += \
-                    compartment_values[self.compartment_names.index(self.infectious_compartment)]
+        for compartment in [comp for comp in self.compartment_names if find_stem(comp) == self.infectious_compartment]:
+            self.tracked_quantities["infectious_population"] += \
+                compartment_values[self.compartment_names.index(compartment)]
 
     def get_parameter_value(self, parameter, time):
         """
-        need to split this out as a function in order to allow stratification later
+        very simple, but need to split this out as a function in order to allow stratification later
         """
         return self.find_parameter_value(parameter, time)
 
