@@ -343,8 +343,7 @@ class EpiModel:
         """
         add fixed or infection-related flow to odes
         """
-        for f in [n_flow for n_flow in range(self.transition_flows.shape[0]) if
-                  self.transition_flows.implement[n_flow] == len(self.strata)]:
+        for f in self.transition_flows[self.transition_flows.implement == len(self.strata)].index:
 
             # find adjusted parameter value
             adjusted_parameter = self.get_parameter_value(self.transition_flows.parameter[f], time)
@@ -389,14 +388,13 @@ class EpiModel:
         """
         equivalent method to for transition flows above, but for deaths
         """
-        for f in range(self.death_flows.shape[0]):
-            if self.death_flows.implement[f] == len(self.strata):
-                adjusted_parameter = self.get_parameter_value(self.death_flows.parameter[f], time)
-                from_compartment = self.compartment_names.index(self.death_flows.origin[f])
-                net_flow = adjusted_parameter * compartment_values[from_compartment]
-                ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
-                if "total_deaths" in self.tracked_quantities:
-                    self.tracked_quantities["total_deaths"] += net_flow
+        for f in self.death_flows[self.death_flows.implement == len(self.strata)].index:
+            adjusted_parameter = self.get_parameter_value(self.death_flows.parameter[f], time)
+            from_compartment = self.compartment_names.index(self.death_flows.origin[f])
+            net_flow = adjusted_parameter * compartment_values[from_compartment]
+            ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
+            if "total_deaths" in self.tracked_quantities:
+                self.tracked_quantities["total_deaths"] += net_flow
         return ode_equations
 
     def apply_universal_death_flow(self, ode_equations, compartment_values, time):
@@ -962,7 +960,8 @@ if __name__ == "__main__":
                          {"infectious": 0.001},
                          {"beta": 400, "recovery": 365 / 13, "infect_death": 1},
                          [{"type": "standard_flows", "parameter": "recovery", "origin": "infectious", "to": "recovered"},
-                          {"type": "infection_density", "parameter": "beta", "origin": "susceptible", "to": "infectious"}],
+                          {"type": "infection_density", "parameter": "beta", "origin": "susceptible", "to": "infectious"},
+                          {"type": "compartment_death", "parameter": "infect_death", "origin": "infectious"}],
                          report=False, integration_type="solve_ivp")
     sir_model.stratify("hiv", ["negative", "positive"], [],
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
