@@ -592,8 +592,9 @@ class StratifiedModel(EpiModel):
                              "unclear what to do, stratification failed")
         else:
             strata_names = strata_request
-        for name in strata_names:
-            self.output_to_user("adding stratum: %s" % name)
+        for name in range(len(strata_names)):
+            strata_names[name] = str(strata_names[name])
+            self.output_to_user("adding stratum: %s" % strata_names[name])
         return strata_names
 
     def check_compartment_request(self, compartment_types_to_stratify):
@@ -729,11 +730,12 @@ class StratifiedModel(EpiModel):
         find the adjustment request that is relevant to a particular unadjusted parameter and stratum
         otherwise allow return of None
         """
-        self.output_to_user("modifying %s for %s stratum of %s" % (unadjusted_parameter, stratum, stratification_name))
         parameter_adjustment_name = None
 
         # find the adjustment request that is an extension of the base parameter type being considered
         for parameter_request in [req for req in adjustment_requests if unadjusted_parameter.startswith(req)]:
+            self.output_to_user(
+                "modifying %s for %s stratum of %s" % (unadjusted_parameter, stratum, stratification_name))
             parameter_adjustment_name = create_stratified_name(unadjusted_parameter, stratification_name, stratum)
 
             # implement user request (otherwise parameter will be left out and assumed to be 1 during integration)
@@ -768,8 +770,8 @@ class StratifiedModel(EpiModel):
         set intercompartmental flows for ageing from one stratum to the next
         """
         for stratum_number in range(len(strata_names[: -1])):
-            start_age = strata_names[stratum_number]
-            end_age = strata_names[stratum_number + 1]
+            start_age = int(strata_names[stratum_number])
+            end_age = int(strata_names[stratum_number + 1])
             ageing_parameter_name = "ageing%sto%s" % (start_age, end_age)
             ageing_rate = 1.0 / (end_age - start_age)
             self.output_to_user("ageing rate from age group %s to %s is %s"
