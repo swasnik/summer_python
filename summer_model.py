@@ -87,7 +87,7 @@ class EpiModel:
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
-                 default_starting_compartment="", equilibrium_stopping_tolerance=None, integration_type="odeint"):
+                 default_starting_compartment="", equilibrium_stopping_tolerance=1e-6, integration_type="odeint"):
 
         # set flow attributes as pandas dataframes with set column names
         self.transition_flows = pandas.DataFrame(columns=["type", "parameter", "origin", "to", "implement"])
@@ -304,10 +304,19 @@ class EpiModel:
                 self.update_tracked_quantities(compartment_values)
                 return self.apply_all_flow_types_to_odes([0.0] * len(self.compartment_names), compartment_values, time)
 
+            # add a stopping condition, which was the original purpose of using this integration approach
+            def set_stopping_conditions(time, compartment_values):
+                self.update_tracked_quantities(compartment_values)
+                net_flows = \
+                    self.apply_all_flow_types_to_odes([0.0] * len(self.compartment_names), compartment_values, time)
+                return max(list(map(abs, net_flows))) - self.equilibrium_stopping_tolerance
+            set_stopping_conditions.terminal = True
+
             # solve_ivp returns more detailed structure, with (transposed) outputs (called "y") being just one component
             self.outputs = solve_ivp(
                 make_model_function,
-                (self.times[0], self.times[-1]), self.compartment_values, t_eval=self.times)["y"].transpose()
+                (self.times[0], self.times[-1]), self.compartment_values, t_eval=self.times,
+                events=set_stopping_conditions)["y"].transpose()
 
         else:
             raise ValueError("integration approach requested not available")
@@ -317,12 +326,6 @@ class EpiModel:
     def prepare_stratified_parameter_calculations(self):
         """
         for use in the stratified version
-        """
-        pass
-
-    def set_stopping_conditions(self):
-        """
-        this and the birth rate method are the only two outstanding methods to the base class still to develop
         """
         pass
 
@@ -491,7 +494,7 @@ class StratifiedModel(EpiModel):
     def __init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                  initial_conditions_to_total=True, infectious_compartment="infectious", birth_approach="no_birth",
                  report=False, reporting_sigfigs=4, entry_compartment="susceptible", starting_population=1,
-                 default_starting_compartment="", equilibrium_stopping_tolerance=None, integration_type="odeint"):
+                 default_starting_compartment="", equilibrium_stopping_tolerance=1e-6, integration_type="odeint"):
         EpiModel.__init__(self, times, compartment_types, initial_conditions, parameters, requested_flows,
                           initial_conditions_to_total=initial_conditions_to_total,
                           infectious_compartment=infectious_compartment, birth_approach=birth_approach,
