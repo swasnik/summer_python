@@ -547,7 +547,7 @@ class StratifiedModel(EpiModel):
         # make sure all stratification names are characters
         if type(stratification_name) != str:
             stratification_name = str(stratification_name)
-            self.output_to_user("converting stratification name %s to character" % stratification_name)
+            self.output_to_user("converting stratification name %s to string" % stratification_name)
 
         # record stratification as model attribute, find the names to apply strata and check requests
         self.strata.append(stratification_name)
@@ -579,9 +579,9 @@ class StratifiedModel(EpiModel):
 
     def find_strata_names_from_input(self, strata_request):
         """
-        find the names of the stratifications from a particular user request
+        find the names of the strata to be implemented from a particular user request
         """
-        if type(strata_request) == list and (strata_request) == 0:
+        if type(strata_request) == list and len(strata_request) == 0:
             raise ValueError("requested to stratify, but no strata provided")
         elif type(strata_request) == int:
             strata_names = numpy.arange(1, strata_request + 1)
@@ -639,7 +639,7 @@ class StratifiedModel(EpiModel):
         # assuming an equal proportion of the total for the compartment if not otherwise specified
         for stratum in strata_names:
             if stratum not in requested_proportions:
-                starting_proportion = 1 / len(strata_names)
+                starting_proportion = 1.0 / len(strata_names)
                 requested_proportions[stratum] = starting_proportion
                 self.output_to_user("no starting proportion requested for stratum %s" % stratum +
                                     " so allocated %s of total" % round(starting_proportion, self.reporting_sigfigs))
@@ -651,22 +651,21 @@ class StratifiedModel(EpiModel):
         """
 
         # find the existing compartments that need stratification
-        for compartment in copy.copy(self.compartment_names):
-            if find_stem(compartment) in self.compartment_types_to_stratify:
+        for compartment in \
+                [comp for comp in self.compartment_names if find_stem(comp) in self.compartment_types_to_stratify]:
 
-                # add and remove compartments
-                for stratum in strata_names:
-                    self.add_compartment(create_stratified_name(compartment, stratification_name, stratum),
-                                         self.compartment_values[self.compartment_names.index(compartment)] *
-                                         requested_proportions[stratum])
-                self.remove_compartment(compartment)
+            # add and remove compartments
+            for stratum in strata_names:
+                self.add_compartment(
+                    create_stratified_name(compartment, stratification_name, stratum),
+                    self.compartment_values[self.compartment_names.index(compartment)] * requested_proportions[stratum])
+            self.remove_compartment(compartment)
 
     def stratify_transition_flows(self, stratification_name, strata_names, adjustment_requests):
         """
         stratify flows depending on whether inflow, outflow or both need replication
         """
-        for flow in [n_flow for n_flow in range(self.transition_flows.shape[0]) if
-                     self.transition_flows.implement[n_flow] == len(self.strata) - 1]:
+        for flow in self.transition_flows[self.transition_flows.implement == len(self.strata) - 1].index:
             self.add_stratified_flows(
                 flow, stratification_name, strata_names,
                 find_stem(self.transition_flows.origin[flow]) in self.compartment_types_to_stratify,
@@ -703,19 +702,18 @@ class StratifiedModel(EpiModel):
         """
         add compartment-specific death flows to death data frame
         """
-        for flow in range(self.death_flows.shape[0]):
-            if self.death_flows.implement[flow] == len(self.strata) - 1:
-                for stratum in strata_names:
-                    parameter_name = self.add_adjusted_parameter(
-                        self.death_flows.parameter[flow], stratification_name, stratum, adjustment_requests)
-                    if not parameter_name:
-                        parameter_name = self.death_flows.parameter[flow]
-                    self.death_flows = self.death_flows.append(
-                        {"type": self.death_flows.type[flow],
-                         "parameter": parameter_name,
-                         "origin": create_stratified_name(self.death_flows.origin[flow], stratification_name, stratum),
-                         "implement": len(self.strata)},
-                        ignore_index=True)
+        for flow in self.death_flows[self.death_flows.implement == len(self.strata) - 1].index:
+            for stratum in strata_names:
+                parameter_name = self.add_adjusted_parameter(
+                    self.death_flows.parameter[flow], stratification_name, stratum, adjustment_requests)
+                if not parameter_name:
+                    parameter_name = self.death_flows.parameter[flow]
+                self.death_flows = self.death_flows.append(
+                    {"type": self.death_flows.type[flow],
+                     "parameter": parameter_name,
+                     "origin": create_stratified_name(self.death_flows.origin[flow], stratification_name, stratum),
+                     "implement": len(self.strata)},
+                    ignore_index=True)
 
     def stratify_universal_death_rate(self, stratification_name, strata_names, adjustment_requests):
         """
@@ -735,19 +733,18 @@ class StratifiedModel(EpiModel):
         parameter_adjustment_name = None
 
         # find the adjustment request that is an extension of the base parameter type being considered
-        for parameter_request in adjustment_requests:
-            if unadjusted_parameter.startswith(parameter_request):
-                parameter_adjustment_name = create_stratified_name(unadjusted_parameter, stratification_name, stratum)
+        for parameter_request in [req for req in adjustment_requests if unadjusted_parameter.startswith(req)]:
+            parameter_adjustment_name = create_stratified_name(unadjusted_parameter, stratification_name, stratum)
 
-                # implement user request (otherwise parameter will be left out and assumed to be 1 during integration)
-                if stratum in adjustment_requests[parameter_request]["adjustments"]:
-                    self.parameters[parameter_adjustment_name] = \
-                        adjustment_requests[parameter_request]["adjustments"][str(stratum)]
+            # implement user request (otherwise parameter will be left out and assumed to be 1 during integration)
+            if stratum in adjustment_requests[parameter_request]["adjustments"]:
+                self.parameters[parameter_adjustment_name] = \
+                    adjustment_requests[parameter_request]["adjustments"][str(stratum)]
 
-                # overwrite parameters higher up the tree by listing which ones to be overwritten
-                if "overwrite" in adjustment_requests[parameter_request] and \
-                        stratum in adjustment_requests[parameter_request]["overwrite"]:
-                    self.overwrite_parameter.append(parameter_adjustment_name)
+            # overwrite parameters higher up the tree by listing which ones to be overwritten
+            if "overwrite" in adjustment_requests[parameter_request] and \
+                    stratum in adjustment_requests[parameter_request]["overwrite"]:
+                self.overwrite_parameter.append(parameter_adjustment_name)
         return parameter_adjustment_name
 
     def apply_heterogeneous_infectiousness(self, stratification_name, strata_request, infectiousness_adjustments):
@@ -806,18 +803,15 @@ class StratifiedModel(EpiModel):
                 if not parameter_name:
                     parameter_name = self.sort_absent_parameter_request(
                         stratification_name, strata_names, stratum, stratify_from, stratify_to, flow)
+                self.output_to_user("\tadding parameter %s" % parameter_name)
 
                 # determine whether to and/or from compartments are stratified
-                if stratify_from:
-                    from_compartment = create_stratified_name(
-                        self.transition_flows.origin[flow], stratification_name, stratum)
-                else:
-                    from_compartment = self.transition_flows.origin[flow]
-                if stratify_to:
-                    to_compartment = create_stratified_name(
-                        self.transition_flows.to[flow], stratification_name, stratum)
-                else:
-                    to_compartment = self.transition_flows.to[flow]
+                from_compartment = \
+                    create_stratified_name(self.transition_flows.origin[flow], stratification_name, stratum) if \
+                        stratify_from else self.transition_flows.origin[flow]
+                to_compartment = \
+                    create_stratified_name(self.transition_flows.to[flow], stratification_name, stratum) if \
+                        stratify_to else self.transition_flows.to[flow]
 
                 # add the new flow
                 self.transition_flows = self.transition_flows.append(
@@ -920,9 +914,8 @@ class StratifiedModel(EpiModel):
 
                 # haven't yet done heterogeneous infectiousness
                 if self.heterogeneous_infectiousness:
-                    for adjustment in self.infectiousness_adjustments:
-                        if adjustment in compartment:
-                            infectiousness_modifier = self.infectiousness_adjustments[adjustment]
+                    for adjustment in [adj for adj in self.infectiousness_adjustments if adj in compartment]:
+                        infectiousness_modifier = self.infectiousness_adjustments[adjustment]
 
                 self.tracked_quantities["infectious_population"] += \
                     compartment_values[self.compartment_names.index(compartment)] * \
