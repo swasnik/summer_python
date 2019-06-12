@@ -41,8 +41,7 @@ def extract_reversed_x_positions(parameter):
     """
     find the positions within a string which are X and return as list reversed, including length of list
     """
-    result = [loc for loc in range(len(parameter)) if parameter[loc] == "X"]
-    result.append(len(parameter))
+    result = extract_x_positions(parameter)
     result.reverse()
     return result
 
@@ -107,7 +106,7 @@ class EpiModel:
         self.check_and_report_attributes(
             times, compartment_types, initial_conditions, parameters, requested_flows, initial_conditions_to_total,
             infectious_compartment, birth_approach, report, reporting_sigfigs, entry_compartment,
-            starting_population, default_starting_compartment, equilibrium_stopping_tolerance)
+            starting_population, default_starting_compartment, equilibrium_stopping_tolerance, integration_type)
 
         # stop ide complaining about attributes being defined outside __init__, even though they aren't
         self.times, self.compartment_types, self.initial_conditions, self.parameters, self.requested_flows, \
@@ -136,7 +135,8 @@ class EpiModel:
     def check_and_report_attributes(
             self, times, compartment_types, initial_conditions, parameters, requested_flows,
             initial_conditions_to_total, infectious_compartment, birth_approach, report, reporting_sigfigs,
-            entry_compartment, starting_population, default_starting_compartment, equilibrium_stopping_tolerance):
+            entry_compartment, starting_population, default_starting_compartment, equilibrium_stopping_tolerance,
+            integration_type):
         """
         check all input data have been requested correctly
         """
@@ -149,7 +149,8 @@ class EpiModel:
             if not isinstance(eval(expected_list), list):
                 raise TypeError("expected list for %s" % expected_list)
         for expected_string in \
-                ["infectious_compartment", "birth_approach", "entry_compartment", "default_starting_compartment"]:
+                ["infectious_compartment", "birth_approach", "entry_compartment", "default_starting_compartment",
+                 "integration_type"]:
             if not isinstance(eval(expected_string), str):
                 raise TypeError("expected string for %s" % expected_string)
         for expected_boolean in ["initial_conditions_to_total", "report"]:
@@ -181,15 +182,10 @@ class EpiModel:
         """
 
         # set starting values of unstratified compartments to requested value, or zero if no value requested
-
-        # temporary code with view to changing over to the new data structure approach
         self.compartment_names = copy.copy(self.compartment_types)
         self.compartment_values = [0.0] * len(self.compartment_names)
-
-        for compartment in self.compartment_types:
-            if compartment in self.initial_conditions:
-                self.compartment_values[self.compartment_names.index(compartment)] = \
-                    self.initial_conditions[compartment]
+        for compartment in [comp for comp in self.compartment_types if comp in self.initial_conditions]:
+            self.compartment_values[self.compartment_names.index(compartment)] = self.initial_conditions[compartment]
 
         # sum to a total value if requested
         if initial_conditions_to_total:
@@ -200,9 +196,9 @@ class EpiModel:
         make initial conditions sum to a certain value
         """
         compartment = self.find_remainder_compartment()
-        if sum(self.compartment_values) > self.starting_population:
-            raise ValueError("total of requested compartment values is greater than the requested starting population")
         remaining_population = self.starting_population - sum(self.compartment_values)
+        if remaining_population < 0.0:
+            raise ValueError("total of requested compartment values is greater than the requested starting population")
         self.output_to_user("requested that total population sum to %s" % self.starting_population)
         self.output_to_user("remaining population of %s allocated to %s compartment"
                             % (remaining_population, compartment))
@@ -226,6 +222,8 @@ class EpiModel:
         """
         add all flows to create data frames from input lists
         """
+
+        # check flow requested correctly
         for flow in requested_flows:
             if flow["parameter"] not in self.parameters:
                 raise ValueError("flow parameter not found in parameter list")
@@ -234,11 +232,13 @@ class EpiModel:
             if "to" in flow and flow["to"] not in self.compartment_types:
                 raise ValueError("to compartment name not found in compartment types")
 
+            # add flow to appropriate dataframe
             if flow["type"] == "compartment_death":
                 self.add_death_flow(flow)
             else:
                 self.add_transition_flow(flow)
 
+            # add any tracked quantities that will be needed for calculating flow rates during integration
             if "infection" in flow["type"]:
                 self.tracked_quantities["infectious_population"] = 0.0
             if flow["type"] == "infection_frequency":
@@ -268,7 +268,7 @@ class EpiModel:
 
     def add_transition_flow(self, flow):
         """
-        simply add a flow to the data frame storing the flows
+        simply add a flow to the pandas dataframe storing the flows
         """
         flow["implement"] = 0
         self.transition_flows = self.transition_flows.append(flow, ignore_index=True)
@@ -291,12 +291,14 @@ class EpiModel:
         self.output_to_user("now integrating")
         self.prepare_stratified_parameter_calculations()
 
+        # basic default integration method
         if self.integration_type == "odeint":
             def make_model_function(compartment_values, time):
                 self.update_tracked_quantities(compartment_values)
                 return self.apply_all_flow_types_to_odes([0.0] * len(self.compartment_names), compartment_values, time)
             self.outputs = odeint(make_model_function, self.compartment_values, self.times)
 
+        # alternative integration method
         elif self.integration_type == "solve_ivp":
 
             # solve_ivp requires arguments to model function in the reverse order
@@ -320,12 +322,11 @@ class EpiModel:
 
         else:
             raise ValueError("integration approach requested not available")
-
         self.output_to_user("integration complete")
 
     def prepare_stratified_parameter_calculations(self):
         """
-        for use in the stratified version
+        for use in the stratified version only
         """
         pass
 
@@ -334,31 +335,29 @@ class EpiModel:
         apply all flow types to a vector of zeros (deaths must come before births in case births replace deaths)
         """
         ode_equations = self.apply_transition_flows(ode_equations, compartment_values, time)
-        if self.death_flows.shape[0] > 0:
-            self.apply_compartment_death_flows(ode_equations, compartment_values, time)
+        ode_equations = self.apply_compartment_death_flows(ode_equations, compartment_values, time)
         ode_equations = self.apply_universal_death_flow(ode_equations, compartment_values, time)
-        ode_equations = self.apply_birth_rate(ode_equations, compartment_values, time)
-        return ode_equations
+        return self.apply_birth_rate(ode_equations, compartment_values, time)
 
     def apply_transition_flows(self, ode_equations, compartment_values, time):
         """
         add fixed or infection-related flow to odes
         """
-
-        # find adjusted parameter value
         for f in [n_flow for n_flow in range(self.transition_flows.shape[0]) if
                   self.transition_flows.implement[n_flow] == len(self.strata)]:
+
+            # find adjusted parameter value
             adjusted_parameter = self.get_parameter_value(self.transition_flows.parameter[f], time)
 
             # find from compartment and "infectious population", which is 1 for standard flows
             infectious_population = self.find_infectious_multiplier(self.transition_flows.type[f])
 
             # calculate the flow and apply to the odes
-            from_compartment = list(self.compartment_names).index(self.transition_flows.origin[f])
+            from_compartment = self.compartment_names.index(self.transition_flows.origin[f])
             net_flow = adjusted_parameter * compartment_values[from_compartment] * infectious_population
             ode_equations = increment_compartment(ode_equations, from_compartment, -net_flow)
             ode_equations = increment_compartment(
-                ode_equations, list(self.compartment_names).index(self.transition_flows.to[f]), net_flow)
+                ode_equations, self.compartment_names.index(self.transition_flows.to[f]), net_flow)
 
             # track any quantities dependent on flow rates
             self.track_derived_outputs(f, net_flow)
@@ -417,11 +416,10 @@ class EpiModel:
 
     def apply_birth_rate(self, ode_equations, compartment_values, time):
         """
-        apply a population-wide death rate to all compartments
+        apply a birth rate to the entry compartments
         """
-        return increment_compartment(
-            ode_equations, self.compartment_names.index(self.entry_compartment),
-            self.find_total_births(compartment_values))
+        return increment_compartment(ode_equations, self.compartment_names.index(self.entry_compartment),
+                                     self.find_total_births(compartment_values))
 
     def find_total_births(self, compartment_values):
         """
@@ -441,8 +439,7 @@ class EpiModel:
         if flow_type == "infection_density":
             return self.tracked_quantities["infectious_population"]
         elif flow_type == "infection_frequency":
-            return self.tracked_quantities["infectious_population"] / \
-                   self.tracked_quantities["total_population"]
+            return self.tracked_quantities["infectious_population"] / self.tracked_quantities["total_population"]
         else:
             return 1
 
@@ -965,8 +962,7 @@ if __name__ == "__main__":
                          {"infectious": 0.001},
                          {"beta": 400, "recovery": 365 / 13, "infect_death": 1},
                          [{"type": "standard_flows", "parameter": "recovery", "origin": "infectious", "to": "recovered"},
-                          {"type": "infection_density", "parameter": "beta", "origin": "susceptible", "to": "infectious"},
-                          {"type": "compartment_death", "parameter": "infect_death", "origin": "infectious"}],
+                          {"type": "infection_density", "parameter": "beta", "origin": "susceptible", "to": "infectious"}],
                          report=False, integration_type="solve_ivp")
     sir_model.stratify("hiv", ["negative", "positive"], [],
                        {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
