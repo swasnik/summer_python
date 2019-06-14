@@ -745,7 +745,7 @@ class StratifiedModel(EpiModel):
 
             # overwrite parameters higher up the tree by listing which ones to be overwritten
             if "overwrite" in adjustment_requests[parameter_request] and \
-                    stratum in adjustment_requests[parameter_request]["overwrite"]:
+                    stratum in str(adjustment_requests[parameter_request]["overwrite"]):
                 self.overwrite_parameter.append(parameter_adjustment_name)
         return parameter_adjustment_name
 
@@ -884,6 +884,7 @@ class StratifiedModel(EpiModel):
             elif component in self.overwrite_parameter and not is_time_variant:
                 self.parameter_components[parameter] = \
                     {"time_variants": [], "constants": [component], "constant_value": 1}
+                break
             elif is_time_variant:
                 self.parameter_components[parameter]["time_variants"].append(component)
             elif component in self.parameters:
