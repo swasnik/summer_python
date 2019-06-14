@@ -81,9 +81,6 @@ if __name__ == "__main__":
         times, ["susceptible", "early_latent", "late_latent", "infectious", "recovered"], {"infectious": 1e-3},
         parameters, flows, birth_approach="replace_deaths")
 
-    something = get_all_age_specific_latency_parameters()
-    print(something)
-
     # # print(flows)
     tb_model.stratify("age", [5, 15], [],
                       adjustment_requests=get_all_age_specific_latency_parameters(),
