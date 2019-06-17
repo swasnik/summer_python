@@ -109,7 +109,7 @@ if __name__ == "__main__":
          "case_detection": 0.0}
     parameters = add_vtp_latency_parameters(parameters)
 
-    times = numpy.linspace(0.0, 200.0, 201).tolist()
+    times = numpy.linspace(1800., 2020.0, 201).tolist()
     flows = [{"type": "infection_frequency", "parameter": "beta", "origin": "susceptible", "to": "early_latent"},
              {"type": "infection_frequency", "parameter": "beta", "origin": "recovered", "to": "early_latent"},
              {"type": "standard_flows", "parameter": "recovery", "origin": "infectious", "to": "recovered"},
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     tb_model.add_transition_flow(
         {"type": "standard_flows", "parameter": "case_detection", "origin": "infectious", "to": "recovered"})
 
-    cdr_scaleup = sinusoidal_scaling_function(100.0, 0.0, 150.0, 0.6)
+    cdr_scaleup = sinusoidal_scaling_function(1950.0, 0.0, 2010.0, 0.6)
     prop_to_rate = convert_competing_proportion_to_rate(1.0 / 3.0)
     detect_rate = return_function_of_function(cdr_scaleup, prop_to_rate)
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     # tb_model.death_flows.to_csv("tb_model_deaths.csv")
 
-    # matplotlib.pyplot.xlim((1e3, 2e3))
-    # matplotlib.pyplot.ylim((0.0, 100.0))
+    matplotlib.pyplot.xlim((1950., 2010.))
+    matplotlib.pyplot.ylim((0.0,2000.0))
     matplotlib.pyplot.show()
     #
