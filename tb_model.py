@@ -57,23 +57,25 @@ def add_standard_latency_flows(flows_):
     return flows_
 
 
-def sinusoidal_scaling_function(x, start_time, baseline_value, end_time, final_value):
+def sinusoidal_scaling_function(start_time, baseline_value, end_time, final_value):
     """
     with a view to implementing scale-up functions over time, use the cosine function to produce smooth scale-up
     functions from one point to another
     """
-    if not isinstance(x, float):
-        raise ValueError("value fed into scaling function not a float")
-    elif start_time > end_time:
-        raise ValueError("start time is later than end time")
-    elif x < start_time:
-        return baseline_value
-    elif start_time < x < end_time:
-        return baseline_value + \
-               (final_value - baseline_value) * \
-               (0.5 - 0.5 * numpy.cos((x - start_time) * numpy.pi / (end_time - start_time)))
-    else:
-        return final_value
+    def sinusoidal_function(x):
+        if not isinstance(x, float):
+            raise ValueError("value fed into scaling function not a float")
+        elif start_time > end_time:
+            raise ValueError("start time is later than end time")
+        elif x < start_time:
+            return baseline_value
+        elif start_time < x < end_time:
+            return baseline_value + \
+                   (final_value - baseline_value) * \
+                   (0.5 - 0.5 * numpy.cos((x - start_time) * numpy.pi / (end_time - start_time)))
+        else:
+            return final_value
+    return sinusoidal_function
 
 
 if __name__ == "__main__":
@@ -85,7 +87,8 @@ if __name__ == "__main__":
         {"beta": 10.0,
          "recovery": case_fatality_rate / untreated_disease_duration,
          "infect_death": (1.0 - case_fatality_rate) / untreated_disease_duration,
-         "universal_death_rate": 1.0 / 50.0}
+         "universal_death_rate": 1.0 / 50.0,
+         "case_detection": 0.0}
     parameters = add_vtp_latency_parameters(parameters)
 
     times = numpy.linspace(0.0, 200.0, 201).tolist()
@@ -95,12 +98,15 @@ if __name__ == "__main__":
              {"type": "compartment_death", "parameter": "infect_death", "origin": "infectious"}]
     flows = add_standard_latency_flows(flows)
 
-    # instantiate and run
     tb_model = summer_model.StratifiedModel(
         times, ["susceptible", "early_latent", "late_latent", "infectious", "recovered"], {"infectious": 1e-3},
         parameters, flows, birth_approach="replace_deaths")
 
-    # # print(flows)
+    tb_model.add_transition_flow(
+        {"type": "standard_flows", "parameter": "case_detection", "origin": "infectious", "to": "recovered"})
+
+    tb_model.time_variants["case_detection"] = sinusoidal_scaling_function(100.0, 0.0, 150.0, 2.0)
+
     tb_model.stratify("age", [5, 15], [],
                       adjustment_requests=get_all_age_specific_latency_parameters(),
                       report=False)
@@ -119,13 +125,11 @@ if __name__ == "__main__":
     # matplotlib.pyplot.xlim((1e3, 2e3))
     # matplotlib.pyplot.ylim((0.0, 100.0))
     matplotlib.pyplot.show()
-
-
-
-
-
+    #
+    # sinusoidal_function = sinusoidal_scaling_function(1.0, 10.0, 2.0, 5.0)
+    #
     # function_x_values = numpy.linspace(0.0, 10.0, 1e2)
-    # function_y_values = [sinusoidal_scaling_function(x, 1.0, 10.0, 2.0, 5.0) for x in function_x_values]
+    # function_y_values = [sinusoidal_function(x) for x in function_x_values]
     # matplotlib.pyplot.plot(function_x_values, function_y_values)
     # matplotlib.pyplot.show()
 
