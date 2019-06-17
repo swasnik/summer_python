@@ -7,8 +7,12 @@ import pandas
 from graphviz import Digraph
 from sqlalchemy import create_engine
 import os
+
+# set path - sachin
 os.environ["PATH"] += os.pathsep + 'C:/Users/swas0001/graphviz-2.38/release/bin'
 
+# set path - james desktop
+os.environ["PATH"] += os.pathsep + 'C:/Program Files (x86)/Graphviz2.38/bin'
 
 
 def find_stem(stratified_string):
