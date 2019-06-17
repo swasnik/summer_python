@@ -582,7 +582,7 @@ class StratifiedModel(EpiModel):
                           equilibrium_stopping_tolerance=equilibrium_stopping_tolerance,
                           integration_type=integration_type)
 
-        self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify = \
+        self.strata, self.removed_compartments, self.overwrite_parameters, self.compartment_types_to_stratify = \
             [[] for _ in range(4)]
         self.heterogeneous_infectiousness = False
         self.infectiousness_adjustments, self.parameter_components = [{} for _ in range(2)]
@@ -636,6 +636,7 @@ class StratifiedModel(EpiModel):
         # record stratification as model attribute, find the names to apply strata and check requests
         self.strata.append(stratification_name)
         strata_names = self.find_strata_names_from_input(strata_request)
+        adjustment_requests = self.alternative_adjustment_request(adjustment_requests)
         self.check_compartment_request(compartment_types_to_stratify)
         self.check_parameter_adjustment_requests(adjustment_requests, strata_names)
         return strata_names
@@ -697,6 +698,25 @@ class StratifiedModel(EpiModel):
             raise ValueError("requested compartment or compartments to be stratified are not available in this model")
         else:
             self.compartment_types_to_stratify = compartment_types_to_stratify
+
+    def alternative_adjustment_request(self, adjustment_requests):
+        """
+        alternative approach to working out which parameters to overwrite - can put a capital W at the string's end
+        """
+        for parameter in adjustment_requests:
+            shadow_adjustments, shadow_overwrites = {}, []
+            for stratum in adjustment_requests[parameter]["adjustments"]:
+                if stratum[-1] == "W":
+                    shadow_adjustments[stratum[: -1]] = adjustment_requests[parameter]["adjustments"][stratum]
+                    shadow_overwrites.append(stratum[: -1])
+                else:
+                    shadow_adjustments[stratum] = adjustment_requests[parameter]["adjustments"][stratum]
+            adjustment_requests[parameter]["adjustments"] = shadow_adjustments
+            if "overwrite" in adjustment_requests[parameter]:
+                adjustment_requests[parameter]["overwrite"].append(shadow_overwrites)
+            else:
+                adjustment_requests[parameter]["overwrite"] = shadow_overwrites
+        return adjustment_requests
 
     def check_parameter_adjustment_requests(self, adjustment_requests, strata_names):
         """
@@ -830,7 +850,7 @@ class StratifiedModel(EpiModel):
             # overwrite parameters higher up the tree by listing which ones to be overwritten
             if "overwrite" in adjustment_requests[parameter_request] and \
                     stratum in str(adjustment_requests[parameter_request]["overwrite"]):
-                self.overwrite_parameter.append(parameter_adjustment_name)
+                self.overwrite_parameters.append(parameter_adjustment_name)
         return parameter_adjustment_name
 
     def apply_heterogeneous_infectiousness(self, stratification_name, strata_request, infectiousness_adjustments):
@@ -961,11 +981,11 @@ class StratifiedModel(EpiModel):
         for x_instance in extract_reversed_x_positions(parameter):
             component = parameter[: x_instance]
             is_time_variant = component in self.time_variants
-            if component in self.overwrite_parameter and is_time_variant:
+            if component in self.overwrite_parameters and is_time_variant:
                 self.parameter_components[parameter] = \
                     {"time_variants": [component], "constants": [], "constant_value": 1}
                 break
-            elif component in self.overwrite_parameter and not is_time_variant:
+            elif component in self.overwrite_parameters and not is_time_variant:
                 self.parameter_components[parameter] = \
                     {"time_variants": [], "constants": [component], "constant_value": 1}
                 break
