@@ -554,6 +554,7 @@ class StratifiedModel(EpiModel):
         strata_names = self.find_strata_names_from_input(strata_request)
         self.check_compartment_request(compartment_types_to_stratify)
         self.check_parameter_adjustment_requests(adjustment_requests, strata_names)
+        self.alternative_adjustment_call(adjustment_requests)
         return strata_names
 
     def check_age_stratification(self, strata_request, compartment_types_to_stratify):
@@ -614,12 +615,10 @@ class StratifiedModel(EpiModel):
         else:
             self.compartment_types_to_stratify = compartment_types_to_stratify
 
-    def check_parameter_adjustment_requests(self, adjustment_requests, strata_names):
+    def alternative_adjustment_call(self, adjustment_requests):
         """
-        check parameter adjustments have been requested appropriately
+        alternative approach to working out which parameters to overwrite - can put a capital W at the string's end
         """
-
-        # alternative approach to working out which parameters to overwrite
         for parameter in adjustment_requests:
             shadow_adjustments, shadow_overwrites = {}, []
             for stratum in adjustment_requests[parameter]["adjustments"]:
@@ -631,6 +630,12 @@ class StratifiedModel(EpiModel):
             adjustment_requests[parameter]["adjustments"] = shadow_adjustments
             adjustment_requests[parameter]["overwrite"] = shadow_overwrites
 
+    def check_parameter_adjustment_requests(self, adjustment_requests, strata_names):
+        """
+        check parameter adjustments have been requested appropriately
+        """
+
+        # check request
         for parameter in adjustment_requests:
 
             # check all the requested strata for parameter adjustments were strata that were requested
