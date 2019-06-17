@@ -57,6 +57,25 @@ def add_standard_latency_flows(flows_):
     return flows_
 
 
+def sinusoidal_scaling_function(x, start_time, baseline_value, end_time, final_value):
+    """
+    with a view to implementing scale-up functions over time, use the cosine function to produce smooth scale-up
+    functions from one point to another
+    """
+    if not isinstance(x, float):
+        raise ValueError("value fed into scaling function not a float")
+    elif start_time > end_time:
+        raise ValueError("start time is later than end time")
+    elif x < start_time:
+        return baseline_value
+    elif start_time < x < end_time:
+        return baseline_value + \
+               (final_value - baseline_value) * \
+               (0.5 - 0.5 * numpy.cos((x - start_time) * numpy.pi / (end_time - start_time)))
+    else:
+        return final_value
+
+
 if __name__ == "__main__":
 
     # set basic parameters, flows and times, except for latency flows and parameters, then functionally add latency
@@ -100,3 +119,13 @@ if __name__ == "__main__":
     # matplotlib.pyplot.xlim((1e3, 2e3))
     # matplotlib.pyplot.ylim((0.0, 100.0))
     matplotlib.pyplot.show()
+
+
+
+
+
+    # function_x_values = numpy.linspace(0.0, 10.0, 1e2)
+    # function_y_values = [sinusoidal_scaling_function(x, 1.0, 10.0, 2.0, 5.0) for x in function_x_values]
+    # matplotlib.pyplot.plot(function_x_values, function_y_values)
+    # matplotlib.pyplot.show()
+
