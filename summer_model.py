@@ -498,7 +498,7 @@ class StratifiedModel(EpiModel):
                           equilibrium_stopping_tolerance=equilibrium_stopping_tolerance,
                           integration_type=integration_type)
 
-        self.strata, self.removed_compartments, self.overwrite_parameter, self.compartment_types_to_stratify = \
+        self.strata, self.removed_compartments, self.overwrite_parameters, self.compartment_types_to_stratify = \
             [[] for _ in range(4)]
         self.heterogeneous_infectiousness = False
         self.infectiousness_adjustments, self.parameter_components = [{} for _ in range(2)]
@@ -618,6 +618,17 @@ class StratifiedModel(EpiModel):
         """
         check parameter adjustments have been requested appropriately
         """
+
+        # alternative approach to working out which parameters to overwrite
+        for parameter in adjustment_requests:
+            shadow_adjustments, shadow_overwrites = {}, []
+            for stratum in adjustment_requests[parameter]["adjustments"]:
+                parameter_name = stratum[: -1] if stratum[-1] == "W" else stratum
+                shadow_adjustments[parameter_name] = adjustment_requests[parameter]["adjustments"][parameter_name]
+                shadow_overwrites.append(parameter_name)
+            adjustment_requests[parameter]["adjustments"] = shadow_adjustments
+            adjustment_requests[parameter]["overwrite"] = shadow_overwrites
+
         for parameter in adjustment_requests:
 
             # check all the requested strata for parameter adjustments were strata that were requested
@@ -746,7 +757,7 @@ class StratifiedModel(EpiModel):
             # overwrite parameters higher up the tree by listing which ones to be overwritten
             if "overwrite" in adjustment_requests[parameter_request] and \
                     stratum in str(adjustment_requests[parameter_request]["overwrite"]):
-                self.overwrite_parameter.append(parameter_adjustment_name)
+                self.overwrite_parameters.append(parameter_adjustment_name)
         return parameter_adjustment_name
 
     def apply_heterogeneous_infectiousness(self, stratification_name, strata_request, infectiousness_adjustments):
@@ -877,11 +888,11 @@ class StratifiedModel(EpiModel):
         for x_instance in extract_reversed_x_positions(parameter):
             component = parameter[: x_instance]
             is_time_variant = component in self.time_variants
-            if component in self.overwrite_parameter and is_time_variant:
+            if component in self.overwrite_parameters and is_time_variant:
                 self.parameter_components[parameter] = \
                     {"time_variants": [component], "constants": [], "constant_value": 1}
                 break
-            elif component in self.overwrite_parameter and not is_time_variant:
+            elif component in self.overwrite_parameters and not is_time_variant:
                 self.parameter_components[parameter] = \
                     {"time_variants": [], "constants": [component], "constant_value": 1}
                 break

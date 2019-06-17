@@ -120,10 +120,12 @@ if __name__ == "__main__":
         {"type": "standard_flows", "parameter": "case_detection", "origin": "infectious", "to": "recovered"})
 
     cdr_scaleup = sinusoidal_scaling_function(1950.0, 0.0, 2010.0, 0.6)
-    prop_to_rate = convert_competing_proportion_to_rate(1.0 / 3.0)
+    prop_to_rate = convert_competing_proportion_to_rate(1.0 / untreated_disease_duration)
     detect_rate = return_function_of_function(cdr_scaleup, prop_to_rate)
 
     tb_model.time_variants["case_detection"] = detect_rate
+
+    # print(get_all_age_specific_latency_parameters())
 
     tb_model.stratify("age", [5, 15], [],
                       adjustment_requests=get_all_age_specific_latency_parameters(),
@@ -135,13 +137,11 @@ if __name__ == "__main__":
                             tb_model.outputs[:, tb_model.compartment_names.index("infectiousXage_5")] + \
                             tb_model.outputs[:, tb_model.compartment_names.index("infectiousXage_15")]
 
-
     matplotlib.pyplot.plot(times, infectious_population * 1e5)
-    print(infectious_population * 1e5)
+    # print(infectious_population * 1e5)
 
     # tb_model.death_flows.to_csv("tb_model_deaths.csv")
 
     matplotlib.pyplot.xlim((1950., 2010.))
-    matplotlib.pyplot.ylim((0.0,2000.0))
+    matplotlib.pyplot.ylim((0.0, 2000.0))
     matplotlib.pyplot.show()
-    #
