@@ -623,9 +623,11 @@ class StratifiedModel(EpiModel):
         for parameter in adjustment_requests:
             shadow_adjustments, shadow_overwrites = {}, []
             for stratum in adjustment_requests[parameter]["adjustments"]:
-                parameter_name = stratum[: -1] if stratum[-1] == "W" else stratum
-                shadow_adjustments[parameter_name] = adjustment_requests[parameter]["adjustments"][parameter_name]
-                shadow_overwrites.append(parameter_name)
+                if stratum[-1] == "W":
+                    shadow_adjustments[stratum[: -1]] = adjustment_requests[parameter]["adjustments"][stratum]
+                    shadow_overwrites.append(stratum[: -1])
+                else:
+                    shadow_adjustments[stratum] = adjustment_requests[parameter]["adjustments"][stratum]
             adjustment_requests[parameter]["adjustments"] = shadow_adjustments
             adjustment_requests[parameter]["overwrite"] = shadow_overwrites
 
