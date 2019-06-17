@@ -550,7 +550,7 @@ class EpiModel:
                 self.graph.node(label.replace('X', '_'))
 
         for row in type_of_flow.iterrows():
-            print(str(row[1]['parameter']))
+            # print(str(row[1]['parameter']))
             self.graph.edge(row[1]['origin'].replace('X', '_'), row[1]['to'].replace('X', '_'), row[1]['parameter'].replace('X', '_'))
         self.graph = apply_styles(self.graph, styles)
         self.graph.render('flowchart')
