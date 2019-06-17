@@ -5,8 +5,9 @@ import matplotlib.pyplot
 import copy
 import pandas
 from graphviz import Digraph
+from sqlalchemy import create_engine
 import os
-#os.environ["PATH"] += os.pathsep + 'C:/Users/swas0001/graphviz-2.38/release/bin'
+os.environ["PATH"] += os.pathsep + 'C:/Users/swas0001/graphviz-2.38/release/bin'
 
 
 
@@ -550,6 +551,11 @@ class EpiModel:
         self.graph = apply_styles(self.graph, styles)
         self.graph.render('flowchart')
 
+    def storeDB(self):
+        engine = create_engine('sqlite:///outputs.db', echo=False)
+        output_df = pandas.DataFrame(self.outputs, columns=self.compartment_names)
+        output_df.insert(0, 'times', self.times)
+        output_df.to_sql('outputs', con=engine, if_exists='replace', index=False)
 
 class StratifiedModel(EpiModel):
     def add_compartment(self, new_compartment_name, new_compartment_value):
@@ -1083,6 +1089,7 @@ if __name__ == "__main__":
     # print(sir_model.outputs)
 
     matplotlib.pyplot.show()
+    sir_model.storeDB()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
