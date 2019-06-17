@@ -78,6 +78,24 @@ def sinusoidal_scaling_function(start_time, baseline_value, end_time, final_valu
     return sinusoidal_function
 
 
+def convert_competing_proportion_to_rate(competing_flows):
+    """
+    convert a proportion to a rate dependent on the other flows coming out of a compartment
+    """
+    def conversion_function(proportion):
+        return proportion * competing_flows / (1.0 - proportion)
+    return conversion_function
+
+
+def return_function_of_function(inner_function, outer_function):
+    """
+    general method to return a chained function from two functions
+    """
+    def conversion_function(value):
+        return outer_function(inner_function(value))
+    return conversion_function
+
+
 if __name__ == "__main__":
 
     # set basic parameters, flows and times, except for latency flows and parameters, then functionally add latency
@@ -105,7 +123,11 @@ if __name__ == "__main__":
     tb_model.add_transition_flow(
         {"type": "standard_flows", "parameter": "case_detection", "origin": "infectious", "to": "recovered"})
 
-    tb_model.time_variants["case_detection"] = sinusoidal_scaling_function(100.0, 0.0, 150.0, 2.0)
+    cdr_scaleup = sinusoidal_scaling_function(100.0, 0.0, 150.0, 0.6)
+    prop_to_rate = convert_competing_proportion_to_rate(1.0 / 3.0)
+    detect_rate = return_function_of_function(cdr_scaleup, prop_to_rate)
+
+    tb_model.time_variants["case_detection"] = detect_rate
 
     tb_model.stratify("age", [5, 15], [],
                       adjustment_requests=get_all_age_specific_latency_parameters(),
@@ -119,6 +141,7 @@ if __name__ == "__main__":
 
 
     matplotlib.pyplot.plot(times, infectious_population * 1e5)
+    print(infectious_population * 1e5)
 
     # tb_model.death_flows.to_csv("tb_model_deaths.csv")
 
@@ -126,10 +149,3 @@ if __name__ == "__main__":
     # matplotlib.pyplot.ylim((0.0, 100.0))
     matplotlib.pyplot.show()
     #
-    # sinusoidal_function = sinusoidal_scaling_function(1.0, 10.0, 2.0, 5.0)
-    #
-    # function_x_values = numpy.linspace(0.0, 10.0, 1e2)
-    # function_y_values = [sinusoidal_function(x) for x in function_x_values]
-    # matplotlib.pyplot.plot(function_x_values, function_y_values)
-    # matplotlib.pyplot.show()
-
