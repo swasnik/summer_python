@@ -17,26 +17,24 @@ def add_vtp_latency_parameters(parameters_, change_time_unit=365.25):
     return parameters_
 
 
-def get_age_specific_latency_parameters(parameter, change_time_unit=365.25):
+def get_age_specific_latency_parameters(parameter, unit_change=365.25):
     """
     get the age-specific latency parameters estimated by Ragonnet et al
     """
     age_stratified_parameters = \
         {"early_progression":
-             {"0": 6.6e-3,
-              "5": 2.7e-3,
-              "15": 2.7e-4},
+             {"0W": 6.6e-3,
+              "5W": 2.7e-3,
+              "15W": 2.7e-4},
          "stabilisation":
-             {"0": 1.2e-2,
-              "5": 1.2e-2,
-              "15": 5.4e-3},
+             {"0W": 1.2e-2,
+              "5W": 1.2e-2,
+              "15W": 5.4e-3},
          "late_progression":
-             {"0": 1.9e-11,
-              "5": 6.4e-6,
-              "15": 3.3e-6}}
-    return {"adjustments":
-                {key: value * change_time_unit for key, value in age_stratified_parameters[parameter].items()},
-            "overwrite": [0, 5, 15]}
+             {"0W": 1.9e-11,
+              "5W": 6.4e-6,
+              "15W": 3.3e-6}}
+    return {"adjustments": {key: value * unit_change for key, value in age_stratified_parameters[parameter].items()}}
 
 
 def get_all_age_specific_latency_parameters(parameters_=("early_progression", "stabilisation", "late_progression")):

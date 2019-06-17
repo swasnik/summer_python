@@ -552,9 +552,9 @@ class StratifiedModel(EpiModel):
         # record stratification as model attribute, find the names to apply strata and check requests
         self.strata.append(stratification_name)
         strata_names = self.find_strata_names_from_input(strata_request)
+        adjustment_requests = self.alternative_adjustment_request(adjustment_requests)
         self.check_compartment_request(compartment_types_to_stratify)
         self.check_parameter_adjustment_requests(adjustment_requests, strata_names)
-        self.alternative_adjustment_call(adjustment_requests)
         return strata_names
 
     def check_age_stratification(self, strata_request, compartment_types_to_stratify):
@@ -615,7 +615,7 @@ class StratifiedModel(EpiModel):
         else:
             self.compartment_types_to_stratify = compartment_types_to_stratify
 
-    def alternative_adjustment_call(self, adjustment_requests):
+    def alternative_adjustment_request(self, adjustment_requests):
         """
         alternative approach to working out which parameters to overwrite - can put a capital W at the string's end
         """
@@ -628,14 +628,16 @@ class StratifiedModel(EpiModel):
                 else:
                     shadow_adjustments[stratum] = adjustment_requests[parameter]["adjustments"][stratum]
             adjustment_requests[parameter]["adjustments"] = shadow_adjustments
-            adjustment_requests[parameter]["overwrite"] = shadow_overwrites
+            if "overwrite" in adjustment_requests[parameter]:
+                adjustment_requests[parameter]["overwrite"].append(shadow_overwrites)
+            else:
+                adjustment_requests[parameter]["overwrite"] = shadow_overwrites
+        return adjustment_requests
 
     def check_parameter_adjustment_requests(self, adjustment_requests, strata_names):
         """
         check parameter adjustments have been requested appropriately
         """
-
-        # check request
         for parameter in adjustment_requests:
 
             # check all the requested strata for parameter adjustments were strata that were requested
