@@ -82,18 +82,14 @@ def convert_competing_proportion_to_rate(competing_flows):
     """
     convert a proportion to a rate dependent on the other flows coming out of a compartment
     """
-    def conversion_function(proportion):
-        return proportion * competing_flows / (1.0 - proportion)
-    return conversion_function
+    return lambda proportion: proportion * competing_flows / (1.0 - proportion)
 
 
 def return_function_of_function(inner_function, outer_function):
     """
     general method to return a chained function from two functions
     """
-    def conversion_function(value):
-        return outer_function(inner_function(value))
-    return conversion_function
+    return lambda value: outer_function(inner_function(value))
 
 
 if __name__ == "__main__":
