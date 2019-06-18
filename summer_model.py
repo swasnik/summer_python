@@ -557,9 +557,13 @@ class EpiModel:
         self.graph = apply_styles(self.graph, styles)
         self.graph.render('flowchart')
 
-    def storeDB(self):
+    def store_database(self):
+        """
+        store outputs from the model in sql database for use in producing outputs later
+        """
         engine = create_engine('sqlite:///outputs.db', echo=False)
         self.outputs.to_sql('outputs', con=engine, if_exists='replace', index=False)
+
 
 class StratifiedModel(EpiModel):
     def add_compartment(self, new_compartment_name, new_compartment_value):
@@ -1093,7 +1097,7 @@ if __name__ == "__main__":
     # print(sir_model.outputs)
 
     matplotlib.pyplot.show()
-    sir_model.storeDB()
+    sir_model.store_database()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
