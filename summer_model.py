@@ -332,6 +332,8 @@ class EpiModel:
         else:
             raise ValueError("integration approach requested not available")
         self.output_to_user("integration complete")
+        self.outputs = pandas.DataFrame(self.outputs, columns=self.compartment_names)
+        self.outputs.insert(0, 'times', self.times)
 
     def prepare_stratified_parameter_calculations(self):
         """
@@ -557,9 +559,7 @@ class EpiModel:
 
     def storeDB(self):
         engine = create_engine('sqlite:///outputs.db', echo=False)
-        output_df = pandas.DataFrame(self.outputs, columns=self.compartment_names)
-        output_df.insert(0, 'times', self.times)
-        output_df.to_sql('outputs', con=engine, if_exists='replace', index=False)
+        self.outputs.to_sql('outputs', con=engine, if_exists='replace', index=False)
 
 class StratifiedModel(EpiModel):
     def add_compartment(self, new_compartment_name, new_compartment_value):
@@ -1085,7 +1085,7 @@ if __name__ == "__main__":
     sir_model.run_model()
     sir_model.create_flowchart(strata=2)
 
-    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
+    outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs.iloc[:, 2] + sir_model.outputs.iloc[:, 3])
 
     # print(len(sir_model.times))
     # print(sir_model.outputs[1])
