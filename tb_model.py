@@ -2,6 +2,7 @@
 import summer_model
 import numpy
 import matplotlib.pyplot
+import os
 
 
 def add_vtp_latency_parameters(parameters_, change_time_unit=365.25):
@@ -22,19 +23,10 @@ def get_age_specific_latency_parameters(parameter, unit_change=365.25):
     get the age-specific latency parameters estimated by Ragonnet et al
     """
     age_stratified_parameters = \
-        {"early_progression":
-             {"0W": 6.6e-3,
-              "5W": 2.7e-3,
-              "15W": 2.7e-4},
-         "stabilisation":
-             {"0W": 1.2e-2,
-              "5W": 1.2e-2,
-              "15W": 5.4e-3},
-         "late_progression":
-             {"0W": 1.9e-11,
-              "5W": 6.4e-6,
-              "15W": 3.3e-6}}
-    return {"adjustments": {key: value * unit_change for key, value in age_stratified_parameters[parameter].items()}}
+        {"early_progression": {"0W": 6.6e-3, "5W": 2.7e-3, "15W": 2.7e-4},
+         "stabilisation": {"0W": 1.2e-2, "5W": 1.2e-2, "15W": 5.4e-3},
+         "late_progression": {"0W": 1.9e-11, "5W": 6.4e-6, "15W": 3.3e-6}}
+    return {key: value * unit_change for key, value in age_stratified_parameters[parameter].items()}
 
 
 def get_all_age_specific_latency_parameters(parameters_=("early_progression", "stabilisation", "late_progression")):
@@ -123,12 +115,14 @@ if __name__ == "__main__":
 
     tb_model.time_variants["case_detection"] = detect_rate
 
-    # print(get_all_age_specific_latency_parameters())
-
+    print(get_all_age_specific_latency_parameters())
     tb_model.stratify("age", [5, 15], [],
                       adjustment_requests=get_all_age_specific_latency_parameters(),
                       report=False)
     tb_model.run_model()
+
+    print(os.getcwd())
+    # tb_model.transition_flows.to_csv("_.csv")
 
     # get outputs
     infectious_population = tb_model.outputs[:, tb_model.compartment_names.index("infectiousXage_0")] + \
@@ -142,4 +136,4 @@ if __name__ == "__main__":
 
     matplotlib.pyplot.xlim((1950., 2010.))
     matplotlib.pyplot.ylim((0.0, 2000.0))
-    matplotlib.pyplot.show()
+    # matplotlib.pyplot.show()

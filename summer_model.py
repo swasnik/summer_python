@@ -610,7 +610,7 @@ class StratifiedModel(EpiModel):
         """
         initial preparation and checks
         """
-        strata_names = self.prepare_and_check_stratification(
+        strata_names, adjustment_requests = self.prepare_and_check_stratification(
             stratification_name, strata_request, compartment_types_to_stratify, adjustment_requests, report)
 
         # work out ageing flows (comes first so that the compartment names are still in the unstratified form)
@@ -652,8 +652,8 @@ class StratifiedModel(EpiModel):
         strata_names = self.find_strata_names_from_input(strata_request)
         adjustment_requests = self.alternative_adjustment_request(adjustment_requests)
         self.check_compartment_request(compartment_types_to_stratify)
-        self.check_parameter_adjustment_requests(adjustment_requests, strata_names)
-        return strata_names
+        adjustment_requests = self.check_parameter_adjustment_requests(adjustment_requests, strata_names)
+        return strata_names, adjustment_requests
 
     def check_age_stratification(self, strata_request, compartment_types_to_stratify):
         """
@@ -717,20 +717,21 @@ class StratifiedModel(EpiModel):
         """
         alternative approach to working out which parameters to overwrite - can put a capital W at the string's end
         """
+        revised_adjustments = {}
         for parameter in adjustment_requests:
-            shadow_adjustments, shadow_overwrites = {}, []
-            for stratum in adjustment_requests[parameter]["adjustments"]:
-                if stratum[-1] == "W":
-                    shadow_adjustments[stratum[: -1]] = adjustment_requests[parameter]["adjustments"][stratum]
-                    shadow_overwrites.append(stratum[: -1])
+            revised_adjustments[parameter] = {}
+            revised_adjustments[parameter]["overwrite"] = \
+                adjustment_requests[parameter]["overwrite"] if "overwrite" in adjustment_requests[parameter] else []
+            for stratum in adjustment_requests[parameter]:
+                if stratum == "overwrite":
+                    continue
+                elif stratum[-1] == "W":
+                    revised_adjustments[parameter][stratum[: -1]] = adjustment_requests[parameter][stratum]
+                    revised_adjustments[parameter]["overwrite"].append(stratum[: -1])
                 else:
-                    shadow_adjustments[stratum] = adjustment_requests[parameter]["adjustments"][stratum]
-            adjustment_requests[parameter]["adjustments"] = shadow_adjustments
-            if "overwrite" in adjustment_requests[parameter]:
-                adjustment_requests[parameter]["overwrite"].append(shadow_overwrites)
-            else:
-                adjustment_requests[parameter]["overwrite"] = shadow_overwrites
-        return adjustment_requests
+                    revised_adjustments[parameter][stratum] = adjustment_requests[parameter][stratum]
+            adjustment_requests[parameter] = revised_adjustments[parameter]
+        return revised_adjustments
 
     def check_parameter_adjustment_requests(self, adjustment_requests, strata_names):
         """
@@ -739,16 +740,17 @@ class StratifiedModel(EpiModel):
         for parameter in adjustment_requests:
 
             # check all the requested strata for parameter adjustments were strata that were requested
-            if any([requested_stratum not in strata_names
-                    for requested_stratum in adjustment_requests[parameter]["adjustments"]]):
+            if any([requested_stratum not in strata_names + ["overwrite"]
+                    for requested_stratum in adjustment_requests[parameter]]):
                 raise ValueError("stratum requested in adjustments but unavailable")
 
-            # if any strata were not requested, assume a value of zero
+            # if any strata were not requested, assume a value of one
             for stratum in strata_names:
-                if stratum not in adjustment_requests[parameter]["adjustments"]:
-                    adjustment_requests[parameter]["adjustments"][stratum] = 1
+                if stratum not in adjustment_requests[parameter]:
+                    adjustment_requests[parameter][stratum] = 1
                     self.output_to_user("no request made for adjustment to %s within stratum " % parameter +
                                         "%s so accepting parent value by default" % stratum)
+        return adjustment_requests
 
     def tidy_starting_proportions(self, strata_names, requested_proportions):
         """
@@ -857,13 +859,12 @@ class StratifiedModel(EpiModel):
             parameter_adjustment_name = create_stratified_name(unadjusted_parameter, stratification_name, stratum)
 
             # implement user request (otherwise parameter will be left out and assumed to be 1 during integration)
-            if stratum in adjustment_requests[parameter_request]["adjustments"]:
-                self.parameters[parameter_adjustment_name] = \
-                    adjustment_requests[parameter_request]["adjustments"][str(stratum)]
+            if stratum in adjustment_requests[parameter_request]:
+                self.parameters[parameter_adjustment_name] = adjustment_requests[parameter_request][stratum]
 
             # overwrite parameters higher up the tree by listing which ones to be overwritten
             if "overwrite" in adjustment_requests[parameter_request] and \
-                    stratum in str(adjustment_requests[parameter_request]["overwrite"]):
+                    stratum in adjustment_requests[parameter_request]["overwrite"]:
                 self.overwrite_parameters.append(parameter_adjustment_name)
         return parameter_adjustment_name
 
@@ -1077,8 +1078,8 @@ if __name__ == "__main__":
                           {"type": "compartment_death", "parameter": "infect_death", "origin": "infectious"}],
                          report=False, integration_type="solve_ivp")
     sir_model.stratify("hiv", ["negative", "positive"], [],
-                       {"recovery": {"adjustments": {"negative": 0.7, "positive": 0.5}},
-                        "infect_death": {"adjustments": {"negative": 0.5}}},
+                       {"recovery": {"negative": 0.7, "positive": 0.5},
+                        "infect_death": {"negative": 0.5}},
                        {"negative": 0.6}, report=False)
     # sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
 
@@ -1093,7 +1094,9 @@ if __name__ == "__main__":
 
     # print(sir_model.outputs)
 
-    # matplotlib.pyplot.show()
+    print(sir_model.transition_flows)
+
+    matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
