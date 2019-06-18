@@ -69,6 +69,89 @@ def normalise_dict(value_dict):
     return {key: value_dict[key] / sum(value_dict.values()) for key in value_dict}
 
 
+def num_str(f):
+    """
+    currently unused function to convert number to a readable string
+    """
+    abs_f = abs(f)
+    if abs_f > 1e9:
+        return "%.1fB" % (f / 1e9)
+    if abs_f > 1e6:
+        return "%.1fM" % (f / 1e6)
+    if abs_f > 1e3:
+        return "%.1fK" % (f / 1e3)
+    if abs_f > 100.:
+        return "%.0f" % f
+    if abs_f > 0.5:
+        return "%.1f" % f
+    if abs_f > 5e-2:
+        return "%.2f" % f
+    if abs_f > 5e-4:
+        return "%.4f" % f
+    if abs_f > 5e-6:
+        return "%.6f" % f
+    return str(f)
+
+
+def create_flowchart(model_object, strata=-1, stratify=True, name="flow_chart"):
+    """
+    use graphviz module to create flow diagram of compartments and intercompartmental flows.
+    """
+
+    # set styles for graph
+    styles = {"graph": {"label": "",
+                        "fontsize": "16", },
+              "nodes": {"fontname": "Helvetica",
+                        "style": "filled",
+                        "fillcolor": "#CCDDFF", },
+              "edges": {"style": "dotted",
+                        "arrowhead": "open",
+                        "fontname": "Courier",
+                        "fontsize": "10", }}
+
+    def apply_styles(graph, styles):
+        graph.graph_attr.update(("graph" in styles and styles["graph"]) or {})
+        graph.node_attr.update(("nodes" in styles and styles["nodes"]) or {})
+        graph.edge_attr.update(("edges" in styles and styles["edges"]) or {})
+        return graph
+
+    # find input nodes and edges
+    if stratify:
+        input_nodes = model_object.compartment_names
+        type_of_flow = model_object.transition_flows[model_object.transition_flows.implement == strata] if strata else \
+            model_object.transition_flows[model_object.transition_flows.implement == len(model_object.strata)]
+    else:
+        input_nodes = model_object.compartment_types
+        type_of_flow = model_object.unstratified_flows
+
+    # inputs are sectioned according to the stem value so colours can be added to each type, not yet implemented
+    broken_down_nodes = []
+    for stem_value in range(len(model_object.compartment_types)):
+        x_vector = []
+        for stem_type in range(len(input_nodes)):
+            if model_object.compartment_types[stem_value] == find_stem(input_nodes[stem_type]):
+                x_vector.append(input_nodes[stem_type])
+        broken_down_nodes.append(stem_value)
+        broken_down_nodes[stem_value] = x_vector
+
+    model_object.flow_diagram = Digraph(format="png")
+    if strata != -1:
+
+        # find the compartment names that will be used to make the graph
+        new_labels = list(set().union(type_of_flow["origin"].values, type_of_flow["to"].values))
+        for label in new_labels:
+            model_object.flow_diagram.node(label)
+    else:
+        for label in model_object.compartment_names:
+            model_object.flow_diagram.node(label)
+
+    # build the graph edges
+    for row in type_of_flow.iterrows():
+        model_object.flow_diagram.edge(row[1]["origin"], row[1]["to"], row[1]["parameter"])
+    model_object.flow_diagram = apply_styles(model_object.flow_diagram, styles)
+    model_object.flow_diagram.render(name)
+
+
 class EpiModel:
     """
     model construction methods
@@ -121,7 +204,7 @@ class EpiModel:
             self.initial_conditions_to_total, self.infectious_compartment, self.birth_approach, self.report, \
             self.reporting_sigfigs, self.entry_compartment, self.starting_population, \
             self.default_starting_compartment, self.default_starting_population, self.equilibrium_stopping_tolerance, \
-            self.unstratified_flows, self.outputs, self.integration_type = [None for _ in range(18)]
+            self.unstratified_flows, self.outputs, self.integration_type, self.flow_diagram = [None for _ in range(19)]
 
         # convert input arguments to model attributes
         for attribute in ["times", "compartment_types", "initial_conditions", "parameters",
@@ -474,92 +557,13 @@ class EpiModel:
         """
         return self.find_parameter_value(parameter, time)
 
-    def create_flowchart(self, strata=None, type = 'stratified', parameters = True):
-        """
-        Use graphviz module to create flow diagram of compartments and intercompartmental flows.
-        """
-
-        styles = {
-            'graph': {'label': 'Dynamic Transmission Model',
-                      'fontsize': '16', },
-            'nodes': {'fontname': 'Helvetica',
-                      'shape': 'box',
-                      'style': 'filled',
-                      'fillcolor': '#CCDDFF', },
-            'edges': {'style': 'dotted',
-                      'arrowhead': 'open',
-                      'fontname': 'Courier',
-                      'fontsize': '10', }
-        }
-
-        def apply_styles(graph, styles):
-            graph.graph_attr.update(('graph' in styles and styles['graph']) or {})
-            graph.node_attr.update(('nodes' in styles and styles['nodes']) or {})
-            graph.edge_attr.update(('edges' in styles and styles['edges']) or {})
-            return graph
-
-        def num_str(f):
-            abs_f = abs(f)
-            if abs_f > 1e9: return '%.1fB' % (f / 1E9)
-            if abs_f > 1e6: return '%.1fM' % (f / 1E6)
-            if abs_f > 1e3: return '%.1fK' % (f / 1E3)
-            if abs_f > 100.: return '%.0f' % f
-            if abs_f > 0.5: return '%.1f' % f
-            if abs_f > 0.05: return '%.2f' % f
-            if abs_f > 0.0005: return '%.4f' % f
-            if abs_f > 0.000005: return '%.6f' % f
-            return str(f)
-
-        if type == 'stratified':
-            input_nodes = self.compartment_names
-            new_df = self.transition_flows
-            if strata != None:
-                type_of_flow = new_df[self.transition_flows.implement == strata]
-            else:
-                type_of_flow = new_df[self.transition_flows.implement == len(self.strata)]
-        elif type == 'unstratified':
-            input_nodes = self.compartment_types
-            type_of_flow = self.unstratified_flows
-        else:
-            print('type needs to be either stratified or unstratified')
-
-        # Inputs are sectioned according to the
-        # stem value so colours can be added to each type.
-        # broken_down_nodes list created
-
-        broken_down_nodes = []
-
-        for stem_value in range(len(self.compartment_types)):
-            x_vector = []
-            for stem_type in range(len(input_nodes)):
-                if self.compartment_types[stem_value] == find_stem(input_nodes[stem_type]):
-                    x_vector.append(input_nodes[stem_type])
-            broken_down_nodes.append(stem_value)
-            broken_down_nodes[stem_value] = x_vector
-
-        # TODO: broken_down_nodes for different colors in flowchart
-
-        self.graph = Digraph(format='png')
-        if strata:
-            newLabels = list(set().union(type_of_flow['origin'].values, type_of_flow['to'].values))
-            for label in newLabels:
-                self.graph.node(label.replace('X', '_'))
-        else:
-            for label in self.compartment_names:
-                self.graph.node(label.replace('X', '_'))
-
-        for row in type_of_flow.iterrows():
-            # print(str(row[1]['parameter']))
-            self.graph.edge(row[1]['origin'].replace('X', '_'), row[1]['to'].replace('X', '_'), row[1]['parameter'].replace('X', '_'))
-        self.graph = apply_styles(self.graph, styles)
-        self.graph.render('flowchart')
-
     def store_database(self):
         """
         store outputs from the model in sql database for use in producing outputs later
         """
-        engine = create_engine('sqlite:///outputs.db', echo=False)
-        self.outputs.to_sql('outputs', con=engine, if_exists='replace', index=False)
+        engine = create_engine("sqlite:///outputs.db", echo=False)
+        self.outputs.to_sql("outputs", con=engine, if_exists="replace", index=False)
+
 
 class StratifiedModel(EpiModel):
     def add_compartment(self, new_compartment_name, new_compartment_value):
@@ -1080,7 +1084,7 @@ if __name__ == "__main__":
 
     sir_model.run_model()
 
-    sir_model.create_flowchart(strata=len(sir_model.strata))
+    create_flowchart(sir_model, strata=len(sir_model.strata))
 
     outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
 
@@ -1089,7 +1093,7 @@ if __name__ == "__main__":
 
     # print(sir_model.outputs)
 
-    matplotlib.pyplot.show()
+    # matplotlib.pyplot.show()
     # print(sir_model.times)
     #
     # print(sir_model.outputs[:, 0])
