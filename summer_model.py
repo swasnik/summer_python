@@ -3,6 +3,15 @@ from scipy.integrate import odeint, solve_ivp
 import matplotlib.pyplot
 import copy
 import pandas
+from graphviz import Digraph
+from sqlalchemy import create_engine
+import os
+
+# set path - sachin
+os.environ["PATH"] += os.pathsep + 'C:/Users/swas0001/graphviz-2.38/release/bin'
+
+# set path - james desktop
+os.environ["PATH"] += os.pathsep + 'C:/Program Files (x86)/Graphviz2.38/bin'
 
 
 def find_stem(stratified_string):
@@ -465,6 +474,92 @@ class EpiModel:
         """
         return self.find_parameter_value(parameter, time)
 
+    def create_flowchart(self, strata=None, type = 'stratified', parameters = True):
+        """
+        Use graphviz module to create flow diagram of compartments and intercompartmental flows.
+        """
+
+        styles = {
+            'graph': {'label': 'Dynamic Transmission Model',
+                      'fontsize': '16', },
+            'nodes': {'fontname': 'Helvetica',
+                      'shape': 'box',
+                      'style': 'filled',
+                      'fillcolor': '#CCDDFF', },
+            'edges': {'style': 'dotted',
+                      'arrowhead': 'open',
+                      'fontname': 'Courier',
+                      'fontsize': '10', }
+        }
+
+        def apply_styles(graph, styles):
+            graph.graph_attr.update(('graph' in styles and styles['graph']) or {})
+            graph.node_attr.update(('nodes' in styles and styles['nodes']) or {})
+            graph.edge_attr.update(('edges' in styles and styles['edges']) or {})
+            return graph
+
+        def num_str(f):
+            abs_f = abs(f)
+            if abs_f > 1e9: return '%.1fB' % (f / 1E9)
+            if abs_f > 1e6: return '%.1fM' % (f / 1E6)
+            if abs_f > 1e3: return '%.1fK' % (f / 1E3)
+            if abs_f > 100.: return '%.0f' % f
+            if abs_f > 0.5: return '%.1f' % f
+            if abs_f > 0.05: return '%.2f' % f
+            if abs_f > 0.0005: return '%.4f' % f
+            if abs_f > 0.000005: return '%.6f' % f
+            return str(f)
+
+        if type == 'stratified':
+            input_nodes = self.compartment_names
+            new_df = self.transition_flows
+            if strata != None:
+                type_of_flow = new_df[self.transition_flows.implement == strata]
+            else:
+                type_of_flow = new_df[self.transition_flows.implement == len(self.strata)]
+        elif type == 'unstratified':
+            input_nodes = self.compartment_types
+            type_of_flow = self.unstratified_flows
+        else:
+            print('type needs to be either stratified or unstratified')
+
+        # Inputs are sectioned according to the
+        # stem value so colours can be added to each type.
+        # broken_down_nodes list created
+
+        broken_down_nodes = []
+
+        for stem_value in range(len(self.compartment_types)):
+            x_vector = []
+            for stem_type in range(len(input_nodes)):
+                if self.compartment_types[stem_value] == find_stem(input_nodes[stem_type]):
+                    x_vector.append(input_nodes[stem_type])
+            broken_down_nodes.append(stem_value)
+            broken_down_nodes[stem_value] = x_vector
+
+        # TODO: broken_down_nodes for different colors in flowchart
+
+        self.graph = Digraph(format='png')
+        if strata:
+            newLabels = list(set().union(type_of_flow['origin'].values, type_of_flow['to'].values))
+            for label in newLabels:
+                self.graph.node(label.replace('X', '_'))
+        else:
+            for label in self.compartment_names:
+                self.graph.node(label.replace('X', '_'))
+
+        for row in type_of_flow.iterrows():
+            # print(str(row[1]['parameter']))
+            self.graph.edge(row[1]['origin'].replace('X', '_'), row[1]['to'].replace('X', '_'), row[1]['parameter'].replace('X', '_'))
+        self.graph = apply_styles(self.graph, styles)
+        self.graph.render('flowchart')
+
+    def store_database(self):
+        """
+        store outputs from the model in sql database for use in producing outputs later
+        """
+        engine = create_engine('sqlite:///outputs.db', echo=False)
+        self.outputs.to_sql('outputs', con=engine, if_exists='replace', index=False)
 
 class StratifiedModel(EpiModel):
     def add_compartment(self, new_compartment_name, new_compartment_value):
@@ -984,6 +1079,8 @@ if __name__ == "__main__":
     # sir_model.stratify("age", [1, 10, 3], [], {}, report=False)
 
     sir_model.run_model()
+
+    sir_model.create_flowchart(strata=len(sir_model.strata))
 
     outputs_plot = matplotlib.pyplot.plot(sir_model.times, sir_model.outputs[:, 2] + sir_model.outputs[:, 3])
 
