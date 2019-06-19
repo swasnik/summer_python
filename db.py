@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 import pandas as pd
 import glob
+import matplotlib.pyplot as plt
 
 
 class InputDB:
@@ -13,7 +14,7 @@ class InputDB:
             Initialise sqlite DB
         """
         self.dbname = dbname
-        self.engine = create_engine('sqlite:///' + dbname , echo=False)
+        self.engine = create_engine('sqlite:///' + dbname , echo=True)
 
     def load_csv(self, inputPath='xls/*.csv'):
         """
@@ -77,18 +78,30 @@ if __name__ == "__main__":
 
     input = InputDB()
     #input.load_xslx()
-    #input.load_csv()
-    res = input.dbQuery('bcg_2015', filter='Cname', value='Bhutan')
-    print(res)
-    res = input.dbQuery('notifications_2019', filter='Country', value='Bhutan')
-    print(res)
-    res = input.dbQuery('rate_birth_2015', filter='Country Code', value='BGR')
-    print(res)
-    res = input.dbQuery('life_expectancy_2015', filter='Country Name', value='Bhutan')
-    print(res)
-    res = input.dbQuery('rate_birth_2014', filter='country', value='Bhutan')
-    print(res)
-    res = input.dbQuery('outcomes_2019', filter='country', value='Bangladesh')
-    print(res)
-    res = input.dbQuery('laboratories_2019', filter='country', value='Congo')
-    print(res)
+    input.load_csv()
+    # res = input.dbQuery('bcg_2015', filter='Cname', value='Bhutan')
+    # print(res)
+    # res = input.dbQuery('notifications_2019', filter='Country', value='Bhutan')
+    # print(res)
+    # res = input.dbQuery('rate_birth_2015', filter='Country Code', value='BGR')
+    # print(res)
+    # res = input.dbQuery('life_expectancy_2015', filter='Country Name', value='Bhutan')
+    # print(res)
+    # res = input.dbQuery('rate_birth_2014', filter='country', value='Bhutan')
+    # print(res)
+    # res = input.dbQuery('outcomes_2019', filter='country', value='Bangladesh')
+    # print(res)
+    # res = input.dbQuery('laboratories_2019', filter='country', value='Congo')
+    # print(res)
+    res = input.dbQuery('burden_countries_2018', filter='country', value='Mongolia')
+    cdr = res[['year', 'c_cdr', 'c_cdr_lo', 'c_cdr_hi']]
+    print(cdr)
+    cdr.plot(x = 'year')
+    plt.show()
+    # res = input.dbQuery('notifications_2019', filter='Country', value='Mongolia')
+    # print(res.columns)
+    # new_incedence =  res[['year', 'c_newinc']]
+    # new_df = pd.merge(cdr,new_incedence,on='year')
+    # new_df.plot(x='year')
+    # plt.show()
+
