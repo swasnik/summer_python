@@ -62,9 +62,13 @@ class InputDB:
         """
             method to query tablename
         """
+
+        if ' ' in filter:
+            filter = '\"' + filter + '\"'
+
         query ="Select "  + column + " from  " + table_name
         if filter != '' and value != '':
-            query = "Select " + column + " from  " + table_name + " Where " + filter + " = \'" + value + '\''
+            query = "Select  " + column + "  from  " + table_name + " Where  " + filter + "  =  \'" + value + '\''
         output_from_db = pd.read_sql_query(query, con=self.engine)
         return output_from_db
 
@@ -72,9 +76,19 @@ class InputDB:
 if __name__ == "__main__":
 
     input = InputDB()
-    input.load_xslx()
-    input.load_csv()
+    #input.load_xslx()
+    #input.load_csv()
     res = input.dbQuery('bcg_2015', filter='Cname', value='Bhutan')
     print(res)
     res = input.dbQuery('notifications_2019', filter='Country', value='Bhutan')
+    print(res)
+    res = input.dbQuery('rate_birth_2015', filter='Country Code', value='BGR')
+    print(res)
+    res = input.dbQuery('life_expectancy_2015', filter='Country Name', value='Bhutan')
+    print(res)
+    res = input.dbQuery('rate_birth_2014', filter='country', value='Bhutan')
+    print(res)
+    res = input.dbQuery('outcomes_2019', filter='country', value='Bangladesh')
+    print(res)
+    res = input.dbQuery('laboratories_2019', filter='country', value='Congo')
     print(res)
